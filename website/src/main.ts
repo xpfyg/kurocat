@@ -23,8 +23,8 @@ function releaseAssetUrl(name: string): string {
 }
 
 function buildDefaultAssets(): ReleaseAssetMap {
-  const winName = 'KuroCat-x64-setup.exe';
-  const macName = 'KuroCat-macos-universal.dmg';
+  const winName = 'MiniCat-x64-setup.exe';
+  const macName = 'MiniCat-macos-universal.dmg';
   return {
     win65: { name: winName, url: releaseAssetUrl(winName), sizeText: '1.62 MB' },
     macos: { name: macName, url: releaseAssetUrl(macName), sizeText: '5.50 MB' },
@@ -97,8 +97,8 @@ async function syncGithubMetadata(): Promise<void> {
 
       if (tag && winAsset && macAsset) {
         applyReleaseUI(tag, {
-          win65: { name: winAsset.name, url: releaseAssetUrl('KuroCat-x64-setup.exe'), sizeText: formatBytesMB(winAsset.size) },
-          macos: { name: macAsset.name, url: releaseAssetUrl('KuroCat-macos-universal.dmg'), sizeText: formatBytesMB(macAsset.size) },
+          win65: { name: winAsset.name, url: releaseAssetUrl('MiniCat-x64-setup.exe'), sizeText: formatBytesMB(winAsset.size) },
+          macos: { name: macAsset.name, url: releaseAssetUrl('MiniCat-macos-universal.dmg'), sizeText: formatBytesMB(macAsset.size) },
         });
       }
     }

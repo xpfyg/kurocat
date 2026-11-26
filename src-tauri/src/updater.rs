@@ -115,24 +115,24 @@ fn pick_asset_by_convention(latest_tag: &str, install_kind: &str) -> Option<(Str
 
     match install_kind {
         "windows-nsis" | "windows-portable" => {
-            let name = format!("KuroCat-{}-x64-setup.exe", ver_clean);
+            let name = format!("MiniCat-{}-x64-setup.exe", ver_clean);
             Some((name.clone(), url(&name)))
         }
         "windows-win7" => {
-            let name = format!("KuroCat-{}-win7.zip", ver_clean);
+            let name = format!("MiniCat-{}-win7.zip", ver_clean);
             Some((name.clone(), url(&name)))
         }
         "macos-app" => {
             // universal .app.tar.gz 优先（自更新走 tar.gz 解压，dmg 留给用户手动）
-            let name = format!("KuroCat-{}-macos-universal.app.tar.gz", tag);
+            let name = format!("MiniCat-{}-macos-universal.app.tar.gz", tag);
             Some((name.clone(), url(&name)))
         }
         "linux-deb-arm64" => {
-            let name = format!("KuroCat-{}-linux-arm64.deb", tag);
+            let name = format!("MiniCat-{}-linux-arm64.deb", tag);
             Some((name.clone(), url(&name)))
         }
         "linux-deb-amd64" => {
-            let name = format!("KuroCat-{}-linux-amd64.deb", tag);
+            let name = format!("MiniCat-{}-linux-amd64.deb", tag);
             Some((name.clone(), url(&name)))
         }
         _ => None,
@@ -576,7 +576,7 @@ fn install_macos_update(app: &AppHandle, info: &UpdateInfo) -> Result<(), String
     let asset_name = info
         .asset_name
         .as_deref()
-        .unwrap_or("KuroCat-macos-universal.app.tar.gz");
+        .unwrap_or("MiniCat-macos-universal.app.tar.gz");
 
     if !asset_name.to_ascii_lowercase().ends_with(".tar.gz") {
         open_url_in_browser(url);
@@ -584,7 +584,7 @@ fn install_macos_update(app: &AppHandle, info: &UpdateInfo) -> Result<(), String
     }
 
     let app_bundle = find_current_macos_app_bundle()
-        .unwrap_or_else(|| PathBuf::from("/Applications/KuroCat.app"));
+        .unwrap_or_else(|| PathBuf::from("/Applications/MiniCat.app"));
 
     emit_progress(
         app,
@@ -795,17 +795,17 @@ mod tests {
 
     #[test]
     fn asset_convention_matches_known_platforms() {
-        let win = pick_asset_by_convention("v4.8.3", "windows-nsis").unwrap();
-        assert_eq!(win.0, "KuroCat-4.8.3-x64-setup.exe");
+        let win = pick_asset_by_convention("v5.0.0", "windows-nsis").unwrap();
+        assert_eq!(win.0, "MiniCat-5.0.0-x64-setup.exe");
         assert!(win.1.contains("releases/latest/download"));
 
-        let mac = pick_asset_by_convention("v4.8.3", "macos-app").unwrap();
-        assert_eq!(mac.0, "KuroCat-v4.8.3-macos-universal.app.tar.gz");
+        let mac = pick_asset_by_convention("v5.0.0", "macos-app").unwrap();
+        assert_eq!(mac.0, "MiniCat-v5.0.0-macos-universal.app.tar.gz");
 
-        let win7 = pick_asset_by_convention("v4.8.3", "windows-win7").unwrap();
-        assert_eq!(win7.0, "KuroCat-4.8.3-win7.zip");
+        let win7 = pick_asset_by_convention("v5.0.0", "windows-win7").unwrap();
+        assert_eq!(win7.0, "MiniCat-5.0.0-win7.zip");
 
-        let none = pick_asset_by_convention("v4.8.3", "unknown-kind");
+        let none = pick_asset_by_convention("v5.0.0", "unknown-kind");
         assert!(none.is_none());
     }
 }

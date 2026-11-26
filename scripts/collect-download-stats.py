@@ -23,6 +23,9 @@ ALIAS_PREFIXES = (
     "KuroCat-x64-setup.exe",
     "KuroCat-macos-universal.",
     "KuroCat-linux-",
+    "MiniCat-x64-setup.exe",
+    "MiniCat-macos-universal.",
+    "MiniCat-linux-",
 )
 
 

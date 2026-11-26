@@ -67,17 +67,17 @@ jobs:
           if ($null -eq $nsis) {
             throw 'Windows NSIS installer was not generated'
           }
-          Copy-Item $nsis.FullName "KuroCat-$ver-x64-setup.exe"
-          Copy-Item $nsis.FullName "KuroCat-x64-setup.exe"
+          Copy-Item $nsis.FullName "MiniCat-$ver-x64-setup.exe"
+          Copy-Item $nsis.FullName "MiniCat-x64-setup.exe"
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kurocat-windows-x64
+          name: minicat-windows-x64
           if-no-files-found: error
           path: |
-            KuroCat-*-x64-setup.exe
-            KuroCat-x64-setup.exe
+            MiniCat-*-x64-setup.exe
+            MiniCat-x64-setup.exe
 
       - name: Publish Windows assets to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
@@ -86,8 +86,8 @@ jobs:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
           draft: false
           files: |
-            KuroCat-*-x64-setup.exe
-            KuroCat-x64-setup.exe
+            MiniCat-*-x64-setup.exe
+            MiniCat-x64-setup.exe
 
   build-macos:
     if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.linux_only) }}
@@ -172,7 +172,7 @@ jobs:
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
-          APP_PATH="src-tauri/target/universal-apple-darwin/release/bundle/macos/KuroCat.app"
+          APP_PATH="src-tauri/target/universal-apple-darwin/release/bundle/macos/MiniCat.app"
           test -d "$APP_PATH"
           echo "=== Signature details ==="
           codesign -dv --verbose=4 "$APP_PATH" 2>&1 || true
@@ -193,30 +193,30 @@ jobs:
               TAG="v$(node -p "require('./package.json').version")"
             fi
           fi
-          APP_PATH="src-tauri/target/universal-apple-darwin/release/bundle/macos/KuroCat.app"
+          APP_PATH="src-tauri/target/universal-apple-darwin/release/bundle/macos/MiniCat.app"
           test -d "$APP_PATH"
           echo "=== Verify macOS minimum version, code signature & Universal slices ==="
           codesign -dv --verbose=2 "$APP_PATH" 2>&1 || true
           plutil -p "$APP_PATH/Contents/Info.plist" | grep -i MinimumSystemVersion || true
-          lipo -info "$APP_PATH/Contents/MacOS/KuroCat"
-          lipo -info "$APP_PATH/Contents/MacOS/KuroCat" | grep -q 'x86_64'
-          lipo -info "$APP_PATH/Contents/MacOS/KuroCat" | grep -q 'arm64'
-          otool -arch x86_64 -l "$APP_PATH/Contents/MacOS/KuroCat" | grep -A4 -E "LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX" || true
-          otool -arch arm64 -l "$APP_PATH/Contents/MacOS/KuroCat" | grep -A4 -E "LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX" || true
+          lipo -info "$APP_PATH/Contents/MacOS/MiniCat"
+          lipo -info "$APP_PATH/Contents/MacOS/MiniCat" | grep -q 'x86_64'
+          lipo -info "$APP_PATH/Contents/MacOS/MiniCat" | grep -q 'arm64'
+          otool -arch x86_64 -l "$APP_PATH/Contents/MacOS/MiniCat" | grep -A4 -E "LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX" || true
+          otool -arch arm64 -l "$APP_PATH/Contents/MacOS/MiniCat" | grep -A4 -E "LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX" || true
           mkdir -p dmg_staging
           cp -R "$APP_PATH" dmg_staging/
           ln -s /Applications dmg_staging/Applications
-          hdiutil create -volname "KuroCat" -srcfolder dmg_staging -ov -format UDZO "KuroCat-${TAG}-macos-universal.dmg"
-          tar -czf "KuroCat-${TAG}-macos-universal.app.tar.gz" -C "src-tauri/target/universal-apple-darwin/release/bundle/macos" "KuroCat.app"
-          test -s "KuroCat-${TAG}-macos-universal.dmg"
-          test -s "KuroCat-${TAG}-macos-universal.app.tar.gz"
-          ls -lh "KuroCat-${TAG}-macos-universal.dmg" "KuroCat-${TAG}-macos-universal.app.tar.gz"
+          hdiutil create -volname "MiniCat" -srcfolder dmg_staging -ov -format UDZO "MiniCat-${TAG}-macos-universal.dmg"
+          tar -czf "MiniCat-${TAG}-macos-universal.app.tar.gz" -C "src-tauri/target/universal-apple-darwin/release/bundle/macos" "MiniCat.app"
+          test -s "MiniCat-${TAG}-macos-universal.dmg"
+          test -s "MiniCat-${TAG}-macos-universal.app.tar.gz"
+          ls -lh "MiniCat-${TAG}-macos-universal.dmg" "MiniCat-${TAG}-macos-universal.app.tar.gz"
 
       - name: Sign macOS .dmg
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
-          DMG_PATH="$(ls KuroCat-*-macos-universal.dmg | head -n 1)"
+          DMG_PATH="$(ls MiniCat-*-macos-universal.dmg | head -n 1)"
           test -f "$DMG_PATH"
           if [[ -z "${APPLE_SIGNING_IDENTITY:-}" ]]; then
             echo "::warning::APPLE_SIGNING_IDENTITY is not set, skipping DMG signing"
@@ -228,24 +228,24 @@ jobs:
 
       - name: Create stable download aliases
         run: |
-          DMG_PATH="$(ls KuroCat-*-macos-universal.dmg | head -n 1)"
-          TARBALL_PATH="$(ls KuroCat-*-macos-universal.app.tar.gz | head -n 1)"
+          DMG_PATH="$(ls MiniCat-*-macos-universal.dmg | head -n 1)"
+          TARBALL_PATH="$(ls MiniCat-*-macos-universal.app.tar.gz | head -n 1)"
           test -f "$DMG_PATH"
           test -f "$TARBALL_PATH"
-          cp "$DMG_PATH" KuroCat-macos-universal.dmg
-          cp "$TARBALL_PATH" KuroCat-macos-universal.app.tar.gz
-          ls -lh KuroCat-macos-universal.dmg KuroCat-macos-universal.app.tar.gz
+          cp "$DMG_PATH" MiniCat-macos-universal.dmg
+          cp "$TARBALL_PATH" MiniCat-macos-universal.app.tar.gz
+          ls -lh MiniCat-macos-universal.dmg MiniCat-macos-universal.app.tar.gz
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kurocat-macos-universal
+          name: minicat-macos-universal
           if-no-files-found: error
           path: |
-            KuroCat-*-macos-universal.dmg
-            KuroCat-*-macos-universal.app.tar.gz
-            KuroCat-macos-universal.dmg
-            KuroCat-macos-universal.app.tar.gz
+            MiniCat-*-macos-universal.dmg
+            MiniCat-*-macos-universal.app.tar.gz
+            MiniCat-macos-universal.dmg
+            MiniCat-macos-universal.app.tar.gz
 
       - name: Publish macOS assets to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
@@ -254,10 +254,10 @@ jobs:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
           draft: false
           files: |
-            KuroCat-*-macos-universal.dmg
-            KuroCat-*-macos-universal.app.tar.gz
-            KuroCat-macos-universal.dmg
-            KuroCat-macos-universal.app.tar.gz
+            MiniCat-*-macos-universal.dmg
+            MiniCat-*-macos-universal.app.tar.gz
+            MiniCat-macos-universal.dmg
+            MiniCat-macos-universal.app.tar.gz
 
   build-linux:
     if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.macos_only) }}
@@ -322,7 +322,7 @@ jobs:
 
       - name: Smoke-test Linux binary and inspect ELF / .deb metadata
         run: |
-          BIN="src-tauri/target/release/KuroCat"
+          BIN="src-tauri/target/release/MiniCat"
           test -x "$BIN"
           echo "=== Dynamic libraries ==="
           ldd "$BIN"
@@ -349,24 +349,24 @@ jobs:
           fi
           ARCH="${{ matrix.arch }}"
           DEB=$(ls src-tauri/target/release/bundle/deb/*.deb | head -n 1)
-          cp "$DEB" "KuroCat-${TAG}-linux-${ARCH}.deb"
-          cp "$DEB" "KuroCat-linux-${ARCH}.deb"
+          cp "$DEB" "MiniCat-${TAG}-linux-${ARCH}.deb"
+          cp "$DEB" "MiniCat-linux-${ARCH}.deb"
           APPIMG=$(ls src-tauri/target/release/bundle/appimage/*.AppImage 2>/dev/null | head -n 1 || true)
           if [[ -n "$APPIMG" && -f "$APPIMG" ]]; then
-            cp "$APPIMG" "KuroCat-${TAG}-linux-${ARCH}.AppImage"
-            cp "$APPIMG" "KuroCat-linux-${ARCH}.AppImage"
+            cp "$APPIMG" "MiniCat-${TAG}-linux-${ARCH}.AppImage"
+            cp "$APPIMG" "MiniCat-linux-${ARCH}.AppImage"
           fi
-          ls -lh KuroCat-${TAG}-linux-${ARCH}.* KuroCat-linux-${ARCH}.*
+          ls -lh MiniCat-${TAG}-linux-${ARCH}.* MiniCat-linux-${ARCH}.*
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kurocat-linux-${{ matrix.arch }}
+          name: minicat-linux-${{ matrix.arch }}
           path: |
-            KuroCat-*-linux-${{ matrix.arch }}.deb
-            KuroCat-*-linux-${{ matrix.arch }}.AppImage
-            KuroCat-linux-${{ matrix.arch }}.deb
-            KuroCat-linux-${{ matrix.arch }}.AppImage
+            MiniCat-*-linux-${{ matrix.arch }}.deb
+            MiniCat-*-linux-${{ matrix.arch }}.AppImage
+            MiniCat-linux-${{ matrix.arch }}.deb
+            MiniCat-linux-${{ matrix.arch }}.AppImage
 
       - name: Publish Linux assets to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
@@ -375,7 +375,7 @@ jobs:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
           draft: false
           files: |
-            KuroCat-*-linux-${{ matrix.arch }}.deb
-            KuroCat-*-linux-${{ matrix.arch }}.AppImage
-            KuroCat-linux-${{ matrix.arch }}.deb
-            KuroCat-linux-${{ matrix.arch }}.AppImage
+            MiniCat-*-linux-${{ matrix.arch }}.deb
+            MiniCat-*-linux-${{ matrix.arch }}.AppImage
+            MiniCat-linux-${{ matrix.arch }}.deb
+            MiniCat-linux-${{ matrix.arch }}.AppImage
