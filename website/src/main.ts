@@ -715,7 +715,7 @@ function initPlayground(): void {
         if (trashTossHint) trashTossHint.textContent = '♻️ 已回收';
         window.setTimeout(() => {
           trashToss.classList.remove('is-done');
-          if (trashTossHint) trashTossHint.textContent = '拖纸团进垃圾桶 → 回收站';
+          if (trashTossHint) trashTossHint.textContent = '拖文件进垃圾桶 → 回收站';
         }, 1400);
       }
       if (!trashDemoOn) engine.setFileDrag(false);
