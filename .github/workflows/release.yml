@@ -6,6 +6,10 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
+      windows_only:
+        description: 'Only build Windows (x64 NSIS + MSI) packages'
+        type: boolean
+        default: false
       linux_only:
         description: 'Only build Linux (x86_64 + ARM64) packages'
         type: boolean
@@ -15,7 +19,7 @@ on:
         type: boolean
         default: false
       release_tag:
-        description: 'Optional tag label for artifact naming (e.g. v4.8.0)'
+        description: 'Optional tag label for artifact naming (e.g. v5.0.0)'
         type: string
         default: ''
 
@@ -47,10 +51,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Tauri app (Windows x64 - 65% Classic Installer)
-        run: npm run tauri -- build --bundles nsis
+      - name: Build Tauri app (Windows x64 - NSIS + MSI)
+        run: npm run tauri -- build --bundles nsis,msi
 
-      - name: Rename Windows installer asset
+      - name: Rename Windows installer assets
         shell: pwsh
         run: |
           $tag = '${{ inputs.release_tag }}'
@@ -69,6 +73,12 @@ jobs:
           }
           Copy-Item $nsis.FullName "MiniCat-$ver-x64-setup.exe"
           Copy-Item $nsis.FullName "MiniCat-x64-setup.exe"
+          $msi = Get-ChildItem "src-tauri/target/release/bundle/msi/*.msi" | Select-Object -First 1
+          if ($null -eq $msi) {
+            throw 'Windows MSI installer was not generated'
+          }
+          Copy-Item $msi.FullName "MiniCat-$ver-x64.msi"
+          Copy-Item $msi.FullName "MiniCat-x64.msi"
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -78,6 +88,8 @@ jobs:
           path: |
             MiniCat-*-x64-setup.exe
             MiniCat-x64-setup.exe
+            MiniCat-*-x64.msi
+            MiniCat-x64.msi
 
       - name: Publish Windows assets to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
@@ -88,9 +100,11 @@ jobs:
           files: |
             MiniCat-*-x64-setup.exe
             MiniCat-x64-setup.exe
+            MiniCat-*-x64.msi
+            MiniCat-x64.msi
 
   build-macos:
-    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.linux_only) }}
+    if: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.linux_only || inputs.windows_only)) }}
     runs-on: macos-latest
     steps:
       - name: Checkout repository
@@ -260,7 +274,7 @@ jobs:
             MiniCat-macos-universal.app.tar.gz
 
   build-linux:
-    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.macos_only) }}
+    if: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.macos_only || inputs.windows_only)) }}
     strategy:
       fail-fast: false
       matrix:
@@ -331,7 +345,7 @@ jobs:
           echo "=== MCP stdio live smoke test ==="
           RESP=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}\n' | "$BIN" --mcp)
           echo "$RESP"
-          echo "$RESP" | grep -q '"name":"kurocat"'
+          echo "$RESP" | grep -q '"name":"minicat"'
           echo "=== DEB metadata ==="
           DEB=$(ls src-tauri/target/release/bundle/deb/*.deb | head -n 1)
           dpkg-deb -I "$DEB"
