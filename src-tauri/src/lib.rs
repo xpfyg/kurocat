@@ -2,6 +2,7 @@
 
 mod cats;
 mod config;
+mod file_drag;
 mod input_hook;
 mod mcp;
 mod media;
@@ -179,6 +180,7 @@ pub struct AppState {
     pub mcp_enabled: Arc<AtomicBool>,
     pub update_banner_open: Arc<AtomicBool>,
     pub paused_guard: Arc<AtomicBool>,
+    pub file_drag_active: Arc<AtomicBool>,
 }
 
 #[derive(Clone, Serialize)]
@@ -233,6 +235,7 @@ fn update_settings(app: AppHandle, state: State<'_, AppState>, mut patch: AppSet
     }
     patch.keyboard_layout = normalize_keyboard_layout(&patch.keyboard_layout);
     patch.keyboard_orientation = normalize_keyboard_orientation(&patch.keyboard_orientation);
+    patch.desk_theme = config::normalize_desk_theme(&patch.desk_theme);
 
     let (prev_autostart, prev_scale, prev_layout) = {
         let s = state.settings.lock().unwrap();
@@ -274,6 +277,55 @@ fn set_menu_open(state: State<'_, AppState>, open: bool) {
 #[tauri::command]
 fn set_dragging(state: State<'_, AppState>, dragging: bool) {
     state.dragging.store(dragging, Ordering::Relaxed);
+}
+
+/// Frontend hint: a file drag is hovering inside the pet window (webview drag-enter),
+/// so keep the window receptive to the drop even where pixels are transparent.
+#[tauri::command]
+fn set_file_drop_active(state: State<'_, AppState>, active: bool) {
+    state.file_drag_active.store(active, Ordering::Relaxed);
+}
+
+/// Which side the cat should hand its trash can toward: cat on the left half of its
+/// monitor hands to the right, cat on the right half hands to the left.
+pub(crate) fn pet_trash_side(app: &AppHandle) -> &'static str {
+    let Some(win) = app.get_webview_window("main") else {
+        return "left";
+    };
+    #[cfg(windows)]
+    let rect = if win_needs_win7_ulw() {
+        win7_layered::get_rect().map(|(x, y, w, h)| (x, y, w as i32, h as i32))
+    } else {
+        None
+    };
+    #[cfg(not(windows))]
+    let rect: Option<(i32, i32, i32, i32)> = None;
+    let rect = rect.or_else(|| match (win.outer_position(), win.outer_size()) {
+        (Ok(p), Ok(s)) => Some((p.x, p.y, s.width as i32, s.height as i32)),
+        _ => None,
+    });
+    let Some((x, y, w, h)) = rect else {
+        return "left";
+    };
+    let cx = x as f64 + w as f64 * 0.5;
+    let cy = y as f64 + h as f64 * 0.5;
+    let monitor = app
+        .monitor_from_point(cx, cy)
+        .ok()
+        .flatten()
+        .or_else(|| win.current_monitor().ok().flatten())
+        .or_else(|| win.primary_monitor().ok().flatten());
+    match monitor {
+        Some(m) => {
+            let mid = m.position().x as f64 + m.size().width as f64 * 0.5;
+            if cx < mid {
+                "right"
+            } else {
+                "left"
+            }
+        }
+        None => "left",
+    }
 }
 
 #[tauri::command]
@@ -957,6 +1009,7 @@ fn start_hit_test_loop(
     dragging: Arc<AtomicBool>,
     update_banner_open: Arc<AtomicBool>,
     paused_guard: Arc<AtomicBool>,
+    file_drag_active: Arc<AtomicBool>,
 ) {
     std::thread::spawn(move || {
         let mut last_ignore: Option<bool> = None;
@@ -1000,6 +1053,7 @@ fn start_hit_test_loop(
             let is_menu = menu_open.load(Ordering::Relaxed);
             let is_drag = dragging.load(Ordering::Relaxed);
             let is_banner = update_banner_open.load(Ordering::Relaxed);
+            let is_file_drag = file_drag_active.load(Ordering::Relaxed);
 
             let need_geom_refresh = cached_rect.is_none()
                 || is_drag
@@ -1199,6 +1253,9 @@ fn start_hit_test_loop(
                 false
             } else if effective_locked {
                 true
+            } else if is_file_drag && inside {
+                // Accept the OS file drop anywhere inside the pet window while the trash can is out
+                false
             } else if is_win7_ulw {
                 false
             } else {
@@ -1271,7 +1328,7 @@ fn start_hit_test_loop(
 
             // Adaptive polling: responsive ~30Hz while hovering/moving/interacting,
             // relaxed ~12.5Hz when cursor is idle outside the pet window.
-            next_sleep_ms = if cursor_moved || inside || is_menu || is_drag || is_banner || alt_override {
+            next_sleep_ms = if cursor_moved || inside || is_menu || is_drag || is_banner || alt_override || is_file_drag {
                 33
             } else {
                 80
@@ -1561,6 +1618,8 @@ pub fn run() {
     let mcp_enabled = Arc::new(AtomicBool::new(initial_settings.mcp_enabled));
     let update_banner_open = Arc::new(AtomicBool::new(false));
     let paused_guard = Arc::new(AtomicBool::new(false));
+    let file_drag_active = Arc::new(AtomicBool::new(false));
+    let file_drag_for_setup = file_drag_active.clone();
 
     let settings_for_setup = settings_arc.clone();
     let menu_for_setup = menu_open.clone();
@@ -1577,6 +1636,7 @@ pub fn run() {
             mcp_enabled,
             update_banner_open,
             paused_guard,
+            file_drag_active,
         })
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -1647,6 +1707,11 @@ pub fn run() {
                 settings_for_setup.clone(),
                 paused_for_setup.clone(),
             );
+            file_drag::start_file_drag_watcher(
+                handle.clone(),
+                file_drag_for_setup.clone(),
+                settings_for_setup.clone(),
+            );
             start_hit_test_loop(
                 handle.clone(),
                 settings_for_setup,
@@ -1654,6 +1719,7 @@ pub fn run() {
                 drag_for_setup,
                 banner_for_setup,
                 paused_for_setup,
+                file_drag_for_setup,
             );
             start_storage_watcher(handle.clone());
             updater::start_background_update_checker(handle.clone());
@@ -1706,6 +1772,8 @@ pub fn run() {
             set_menu_open,
             set_dragging,
             set_update_banner_open,
+            set_file_drop_active,
+            file_drag::trash_files,
             is_win7_ulw_mode,
             win7_present_frame,
             win7_sync_overlay,

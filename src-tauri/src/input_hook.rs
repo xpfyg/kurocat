@@ -945,7 +945,7 @@ pub mod macos_hook {
             "未运行（需输入监控权限）"
         };
         let tip = if !st.accessibility || !st.input_monitoring {
-            "若系统设置里开关亮着但这里显示「未生效」，说明更新版本后系统缓存过期：请在「辅助功能」和「输入监控」中选中 KuroCat 点左下角「-」号删除，再点「+」号重新添加并重启。"
+            "若系统设置里开关亮着但这里显示「未生效」，说明更新版本后系统缓存过期：请在「辅助功能」和「输入监控」中选中 MiniCat 点左下角「-」号删除，再点「+」号重新添加并重启。"
         } else if st.key_events_received == 0 {
             "权限均已生效！请先随便敲几下键盘测试；若使用 Karabiner-Elements 仍无响应，可点击托盘「重新连接键盘监听」。"
         } else {
@@ -961,7 +961,7 @@ pub mod macos_hook {
             .replace('"', "\\\"")
             .replace('\n', "\\n");
         let script = format!(
-            "display dialog \"{}\" with title \"KuroCat 键盘监听诊断\" buttons {{\"确定\"}} default button \"确定\"",
+            "display dialog \"{}\" with title \"MiniCat 键盘监听诊断\" buttons {{\"确定\"}} default button \"确定\"",
             escaped
         );
         let _ = std::process::Command::new("osascript")

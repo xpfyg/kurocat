@@ -9,5 +9,11 @@ export default defineConfig({
     outDir: path.resolve(__dirname, 'dist-web'),
     emptyOutDir: true,
     assetsInlineLimit: 4096,
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'website/index.html'),
+        privacy: path.resolve(__dirname, 'website/privacy.html'),
+      },
+    },
   },
 });

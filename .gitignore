@@ -16,3 +16,5 @@ local-artifacts/
 # 工具与临时目录
 .trae/
 .screenshots/
+
+.netlify/

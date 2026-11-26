@@ -10,6 +10,8 @@ import {
 import { catAudio } from './audio';
 import { resolveCustomSkin, type CatSkinConfig, type ResolvedSkin } from './catSkins';
 import { DaFeiYuRenderer, type DaFeiYuLayout } from './dafeiyuRenderer';
+import { getDeskTheme, type DeskTheme } from './deskThemes';
+import { CRITTER_FLAP_SPEED, CRITTER_KINDS, drawCritter, type CritterKind } from './critters';
 
 export const LOGICAL_W = 420;
 export const LOGICAL_H = 440;
@@ -29,7 +31,7 @@ interface SmearFrame {
   alpha: number;
 }
 
-type PawMode = 'idle' | 'curled' | 'poke' | 'mouse';
+type PawMode = 'idle' | 'curled' | 'poke' | 'mouse' | 'swat' | 'hold';
 
 interface PawState {
   side: 'left' | 'right';
@@ -145,6 +147,7 @@ export class KuroCatEngine {
   private privacyTypingAt = -10000;
   private lastMouseNX = 0.5;
   private lastDt = 1 / 60;
+  private lastDtForFx = 1 / 60;
 
   // Mood system: music relaxes the cat, endless typing makes it grumpy, petting makes it
   // happy, a nearby cursor sparks curiosity, and a long idle stretch makes it sleepy.
@@ -155,6 +158,51 @@ export class KuroCatEngine {
   private annoyAmount = 0;
   private headphoneAmount = 0;
   private tailWagPhase = 0;
+  // Idle tail swish (a decaying traveling wave every few seconds)
+  private tailFlick = 0;
+  private tailFlickSign = 1;
+  private nextTailFlickAt = 2.5;
+
+  // Keyboard + mouse look
+  private deskTheme: DeskTheme = getDeskTheme('classic');
+
+  // Flying critter cursor toy: near the cat the cursor turns into a little flier the cat hunts
+  public flyingToysEnabled = true;
+  private cursorPresent = true;
+  private critterActive = false;
+  private critterAmount = 0;
+  private critterHunt = 0;
+  private critterKind: CritterKind = 'butterfly';
+  private critterKindIdx = Math.floor(Math.random() * CRITTER_KINDS.length);
+  private critterX = 0;
+  private critterY = 0;
+  private critterVX = 0;
+  private critterVY = 0;
+  private critterFacing = 1;
+  private critterFlap = 0;
+  private critterDodgeX = 0;
+  private critterDodgeY = 0;
+  private critterLastMoveAt = -10000;
+  private lastCursorLX = -9999;
+  private lastCursorLY = -9999;
+  private nextSwatAt = 0;
+  private critterFx: Array<{ x: number; y: number; vx: number; vy: number; age: number; life: number; color: string }> = [];
+
+  // Trash can helper: appears while files are dragged; drop to send them to the recycle bin
+  private trashWanted = false;
+  private trashSide: 1 | -1 = -1;
+  private trashCount = 1;
+  private trashAmount = 0;
+  private trashReach = 0;
+  private trashScale = 1;
+  private trashLid = 0;
+  private trashHover = false;
+  private trashGulpT = -1;
+  private trashGulpCount = 0;
+  private trashWobble = 0;
+  private trashHoldUntil = 0;
+  private trashPapers: Array<{ x: number; y: number; vx: number; vy: number; rot: number; age: number }> = [];
+  private trashFx: Array<{ x: number; y: number; age: number; text: string }> = [];
   private happyAmount = 0;
   private curiousAmount = 0;
   private sleepyAmount = 0;
@@ -177,6 +225,122 @@ export class KuroCatEngine {
   public setMoodPreview(mood: CatMood | null): void {
     // The whale has its own expression tiers; keep the preview API inert for it.
     this.moodPreview = this.catBreed === 'dafeiyu' ? null : mood;
+  }
+
+  public setDeskTheme(id: string): void {
+    this.deskTheme = getDeskTheme(id);
+  }
+
+  public getDeskThemeId(): string {
+    return this.deskTheme.id;
+  }
+
+  /** Hosts can report that the pointer left the stage entirely (web playground). */
+  public setCursorPresent(present: boolean): void {
+    this.cursorPresent = present;
+    if (!present) this.critterActive = false;
+  }
+
+  public setFlyingToysEnabled(enabled: boolean): void {
+    this.flyingToysEnabled = enabled;
+    if (!enabled) this.critterActive = false;
+  }
+
+  /** True while the cursor is showing as a flying critter (lets hosts hide the real pointer). */
+  public isCritterActive(): boolean {
+    return this.critterActive && this.critterAmount > 0.3;
+  }
+
+  /**
+   * Files are being dragged somewhere on screen: pull the trash can out from behind the cat.
+   * `side` = which way to hand it ('right' when the cat sits on the left half of the screen).
+   */
+  public setFileDrag(active: boolean, count = 0, side?: 'left' | 'right'): void {
+    if (active) {
+      if (side && this.trashAmount < 0.05) {
+        this.trashSide = side === 'right' ? 1 : -1;
+      }
+      this.trashWanted = true;
+      if (count > 0) this.trashCount = count;
+    } else if (this.trashWanted) {
+      this.trashWanted = false;
+      // Short grace period so a drop event arriving right after mouse-up still lands in the can
+      this.trashHoldUntil = Math.max(this.trashHoldUntil, performance.now() + 450);
+    }
+  }
+
+  public setFileDragCount(count: number): void {
+    if (count > 0) this.trashCount = count;
+  }
+
+  public isTrashOut(): boolean {
+    return this.trashAmount > 0.55;
+  }
+
+  public isPointOverTrash(lx: number, ly: number): boolean {
+    if (this.trashAmount < 0.55) return false;
+    const g = this.getTrashGeom();
+    if (g.behind) return false;
+    const halfW = g.w * 0.5 + 18;
+    const top = g.y - g.h * 0.5 - 30 * g.s;
+    const bottom = g.y + g.h * 0.5 + 16;
+    return Math.abs(lx - g.x) <= halfW && ly >= top && ly <= bottom;
+  }
+
+  /** Whether the live cursor currently hovers the trash can opening. */
+  public isCursorOverTrash(): boolean {
+    return this.trashHover;
+  }
+
+  /** Files were moved to the recycle bin: gulp animation + little "recycled" badge. */
+  public onTrashSwallowed(count: number): void {
+    const g = this.getTrashGeom();
+    this.trashGulpT = 0;
+    this.trashGulpCount = count;
+    this.trashWobble = 1;
+    this.trashHoldUntil = performance.now() + 1250;
+    const n = Math.max(1, Math.min(5, count));
+    for (let i = 0; i < n; i++) {
+      this.trashPapers.push({
+        x: g.x + (Math.random() - 0.5) * g.w * 0.6,
+        y: g.y - g.h * 0.5 - 34 - i * 12,
+        vx: (Math.random() - 0.5) * 30,
+        vy: -40 - Math.random() * 40,
+        rot: (Math.random() - 0.5) * 1.2,
+        age: 0,
+      });
+    }
+    this.trashFx.push({ x: g.x, y: g.y - g.h * 0.5 - 18, age: 0, text: `♻ +${count}` });
+    this.earTwitchLeft = 1;
+    this.earTwitchRight = 0.8;
+    this.spawnMoodGlyph('happy');
+  }
+
+  /** Maps CSS pixel coordinates (relative to the canvas) to the engine's logical space. */
+  public clientToLogical(cssX: number, cssY: number): { x: number; y: number } {
+    const cssW = Math.max(1, this.embedded ? this.canvas.clientWidth || 420 : window.innerWidth);
+    const dpr = this.canvas.width / cssW;
+    const vt = this.getViewTransform();
+    return {
+      x: (cssX * dpr - vt.ox) / vt.s,
+      y: (cssY * dpr - vt.oy) / vt.s,
+    };
+  }
+
+  private getViewTransform(): { ox: number; oy: number; s: number } {
+    const cw = this.canvas.width;
+    const ch = this.canvas.height;
+    if (this.embedded) {
+      const baseFit = Math.min((cw * 0.86) / this.logicalW, (ch * 0.86) / this.logicalH);
+      const effectiveMul = this.renderScale <= 1.0 ? this.renderScale : 1.0 + (this.renderScale - 1.0) * 0.30;
+      const s = baseFit * effectiveMul;
+      return { ox: (cw - this.logicalW * s) * 0.5, oy: (ch - this.logicalH * s) * 0.52, s };
+    }
+    const cssW = Math.max(1, window.innerWidth);
+    const dpr = cw / cssW;
+    const fitScale = Math.min(cw / this.logicalW, ch / this.logicalH);
+    const s = Math.min(fitScale, this.renderScale * dpr);
+    return { ox: cw - this.logicalW * s, oy: ch - this.logicalH * s, s };
   }
 
   public setPrivacyMode(active: boolean): void {
@@ -470,6 +634,15 @@ export class KuroCatEngine {
       this.earTwitchRight > 0.01 ||
       (this.headphoneAmount > 0.01 && this.headphoneAmount < 0.99) ||
       this.musicNotes.length > 0 ||
+      this.tailFlick > 0.01 ||
+      this.happyAmount > 0.04 ||
+      this.curiousAmount > 0.04 ||
+      this.critterAmount > 0.01 ||
+      this.critterFx.length > 0 ||
+      this.trashWanted ||
+      this.trashAmount > 0.001 ||
+      this.trashPapers.length > 0 ||
+      this.trashFx.length > 0 ||
       this.leftPaw.mode !== 'idle' ||
       this.rightPaw.mode !== 'idle' ||
       this.leftPaw.smears.length > 0 ||
@@ -639,6 +812,9 @@ export class KuroCatEngine {
       chosen = this.rightPaw;
     }
 
+    if (chosen.mode === 'hold') {
+      chosen = chosen.side === 'left' ? this.rightPaw : this.leftPaw;
+    }
     const sideSign = chosen.side === 'left' ? -1 : 1;
     this.strikeRockVel +=
       sideSign * (1.75 + this.typingEnergy * 1.25) * (1 + this.annoyAmount * 0.5);
@@ -704,6 +880,8 @@ export class KuroCatEngine {
     this.mouseTargetOffsetY = (ny - 0.5) * (this.catBreed === 'dafeiyu' ? 11 : 20);
     this.lastMouseMoveAt = now;
 
+    // While hunting a flying critter or holding the trash can, the left paw stays busy.
+    if (this.critterActive || this.leftPaw.mode === 'hold') return;
     this.leftPaw.mode = 'mouse';
     this.leftPaw.lastActiveAt = now;
   }
@@ -781,6 +959,7 @@ export class KuroCatEngine {
 
     this.lastMouseMoveAt = now;
     this.dafeiyu.resetLeftHandForMouse();
+    if (this.leftPaw.mode === 'hold') return;
     this.leftPaw.mode = 'mouse';
     this.leftPaw.impactSquash = 0.72;
     this.leftPaw.lastActiveAt = now;
@@ -797,6 +976,7 @@ export class KuroCatEngine {
     this.mouseScrollFlash = 1;
     this.lastMouseMoveAt = now;
     this.dafeiyu.resetLeftHandForMouse();
+    if (this.leftPaw.mode === 'hold') return;
     this.leftPaw.mode = 'mouse';
     this.leftPaw.lastActiveAt = now;
   }
@@ -1220,7 +1400,7 @@ export class KuroCatEngine {
         Math.sin(this.elapsed * 26 + sideSign) * 0.024 * this.annoyAmount) *
       freeFactor;
     const sleepyDroop = this.sleepyAmount * 0.24 * freeFactor;
-    const curiousPerk = this.curiousAmount * 0.14 * freeFactor;
+    const curiousPerk = (this.curiousAmount * 0.14 + this.critterHunt * 0.12) * freeFactor;
 
     const x =
       sideSign * (33 + hpEase * 5.2 + this.annoyAmount * 2.2 * freeFactor) +
@@ -1407,6 +1587,525 @@ export class KuroCatEngine {
     ctx.restore();
   }
 
+  // ---- Idle tail swish ----
+
+  private updateTailFlick(): void {
+    this.tailFlick = Math.max(0, this.tailFlick - this.lastDtForFx * 1.45);
+    if (this.elapsed >= this.nextTailFlickAt) {
+      if (!this.privacyMode && this.annoyAmount < 0.3) {
+        this.tailFlick = 1;
+        this.tailFlickSign = Math.random() < 0.5 ? -1 : 1;
+      }
+      this.nextTailFlickAt =
+        this.elapsed + (this.sleepyAmount > 0.5 ? 7 + Math.random() * 6 : 2.6 + Math.random() * 4.4);
+    }
+  }
+
+  // ---- Trash can helper ----
+
+  private getTrashGeom(): {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    s: number;
+    rot: number;
+    behind: boolean;
+    side: 1 | -1;
+  } {
+    const side = this.trashSide;
+    const s = this.trashScale;
+    const w = 34 * s;
+    const h = 40 * s;
+    const cx = this.catCenterX;
+    const reach = this.trashReach;
+    // Closest hand-off sits beside the chest; the furthest is capped so the can never leaves the window.
+    const minDX = 86;
+    const maxDX = this.keyboardLayout === '108' ? 176 : 158;
+    const margin = w * 0.5 + 10;
+    const finalX = Math.max(margin, Math.min(this.logicalW - margin, cx + side * (minDX + (maxDX - minDX) * reach)));
+    const finalY = this.catTopY + 146 - reach * 22 - (s - 1) * 10;
+    const peekX = cx + side * 50;
+    const peekY = this.catTopY + 46;
+    const hideX = cx + side * 12;
+    const hideY = this.catTopY + 150;
+    const e = Math.max(0, Math.min(1, this.trashAmount));
+    if (e < 0.5) {
+      const k0 = e / 0.5;
+      const k = k0 * k0 * (3 - 2 * k0);
+      return {
+        x: hideX + (peekX - hideX) * k,
+        y: hideY + (peekY - hideY) * k,
+        w,
+        h,
+        s,
+        rot: side * -0.35 * k,
+        behind: true,
+        side,
+      };
+    }
+    const k0 = (e - 0.5) / 0.5;
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    const k = 1 + c3 * Math.pow(k0 - 1, 3) + c1 * Math.pow(k0 - 1, 2); // easeOutBack
+    return {
+      x: peekX + (finalX - peekX) * k,
+      y: peekY + (finalY - peekY) * k,
+      w,
+      h,
+      s,
+      rot: side * -0.35 * (1 - Math.min(1, k)),
+      behind: false,
+      side,
+    };
+  }
+
+  private updateTrash(dt: number, now: number): void {
+    const gulping = this.trashGulpT >= 0;
+    const want =
+      !this.privacyMode && (this.trashWanted || gulping || now < this.trashHoldUntil);
+    this.trashAmount = want
+      ? Math.min(1, this.trashAmount + dt / 0.55)
+      : Math.max(0, this.trashAmount - dt / 0.42);
+
+    // More files -> a (slightly) bigger can, capped so it never gets silly.
+    const targetScale = 1 + Math.min(0.42, Math.log2(Math.max(1, this.trashCount)) * 0.12);
+    this.trashScale += (targetScale - this.trashScale) * (1 - Math.exp(-6 * dt));
+
+    // The closer the cursor gets to the cat, the further the cat stretches the can toward it.
+    const cx = this.cursorRelX * this.logicalW;
+    const cy = this.cursorRelY * this.logicalH;
+    const center = this.spinePoint(0.5, 0);
+    const d = Math.hypot(cx - center.x, cy - center.y);
+    if (!gulping) {
+      const reachTarget = Math.max(0, Math.min(1, (400 - d) / (400 - 110)));
+      this.trashReach += (reachTarget - this.trashReach) * (1 - Math.exp(-5 * dt));
+    }
+
+    this.trashHover = this.trashWanted && this.isPointOverTrash(cx, cy);
+    const lidTarget = gulping
+      ? this.trashGulpT < 0.32
+        ? 1
+        : 0
+      : this.trashHover
+        ? 1
+        : this.trashWanted
+          ? 0.3
+          : 0;
+    this.trashLid += (lidTarget - this.trashLid) * (1 - Math.exp(-(gulping && this.trashGulpT >= 0.32 ? 26 : 12) * dt));
+
+    if (gulping) {
+      const prev = this.trashGulpT;
+      this.trashGulpT += dt;
+      if (prev < 0.32 && this.trashGulpT >= 0.32) this.trashWobble = 1;
+      if (this.trashGulpT > 1.05) this.trashGulpT = -1;
+    }
+    this.trashWobble = Math.max(0, this.trashWobble - dt * 2.6);
+
+    const g = this.getTrashGeom();
+    const openingY = g.y - g.h * 0.5;
+    for (const p of this.trashPapers) {
+      p.age += dt;
+      p.vy += 620 * dt;
+      p.x += (g.x - p.x) * (1 - Math.exp(-5 * dt)) + p.vx * dt;
+      p.y += p.vy * dt;
+      p.rot += dt * 4;
+    }
+    this.trashPapers = this.trashPapers.filter((p) => !(p.vy > 0 && p.y > openingY + 2) && p.age < 2);
+    for (const f of this.trashFx) f.age += dt;
+    this.trashFx = this.trashFx.filter((f) => f.age < 1.6);
+
+    // Paw on the hand-off side grips the can's rim while it's out front.
+    const holdPaw = this.trashSide > 0 ? this.rightPaw : this.leftPaw;
+    const otherPaw = holdPaw === this.rightPaw ? this.leftPaw : this.rightPaw;
+    if (otherPaw.mode === 'hold') otherPaw.mode = 'idle';
+    if (this.catBreed !== 'dafeiyu' && this.trashAmount > 0.45 && !g.behind) {
+      holdPaw.mode = 'hold';
+      holdPaw.target = { x: g.x - this.trashSide * g.w * 0.34, y: g.y - g.h * 0.5 + 4 * g.s };
+      holdPaw.lastActiveAt = now;
+    } else if (holdPaw.mode === 'hold') {
+      holdPaw.mode = 'idle';
+    }
+
+    if (this.trashAmount <= 0 && !want) {
+      this.trashCount = 1;
+      this.trashReach = 0;
+    }
+  }
+
+  private drawTrashLayer(ctx: CanvasRenderingContext2D, front: boolean): void {
+    if (this.trashAmount <= 0.001) return;
+    const g = this.getTrashGeom();
+    if (g.behind === front) return;
+    this.drawTrashCan(ctx, g);
+  }
+
+  private drawTrashCan(
+    ctx: CanvasRenderingContext2D,
+    g: { x: number; y: number; w: number; h: number; s: number; rot: number; behind: boolean; side: 1 | -1 },
+  ): void {
+    const accent = this.getMouseButtonColors().left;
+    const wob = this.trashWobble * Math.sin(this.elapsed * 28) * 0.13;
+    const topHW = 17;
+    const botHW = 13.2;
+    const top = -20;
+    const bot = 20;
+    const outline = '#39404a';
+
+    ctx.save();
+    ctx.translate(g.x, g.y);
+    ctx.rotate(g.rot + wob);
+    ctx.scale(g.s, g.s);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    // Soft drop shadow
+    ctx.save();
+    ctx.shadowColor = 'rgba(10, 12, 18, 0.35)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 4;
+    ctx.fillStyle = '#9aa4ae';
+    ctx.beginPath();
+    ctx.moveTo(-topHW, top);
+    ctx.lineTo(topHW, top);
+    ctx.lineTo(botHW, bot - 4);
+    ctx.quadraticCurveTo(botHW, bot, botHW - 4, bot);
+    ctx.lineTo(-botHW + 4, bot);
+    ctx.quadraticCurveTo(-botHW, bot, -botHW, bot - 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Body with brushed-metal gradient
+    const bodyGrad = ctx.createLinearGradient(-topHW, 0, topHW, 0);
+    bodyGrad.addColorStop(0, '#aeb8c2');
+    bodyGrad.addColorStop(0.32, '#eef2f5');
+    bodyGrad.addColorStop(0.62, '#c9d1d8');
+    bodyGrad.addColorStop(1, '#8f9aa5');
+    ctx.fillStyle = bodyGrad;
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-topHW, top);
+    ctx.lineTo(topHW, top);
+    ctx.lineTo(botHW, bot - 4);
+    ctx.quadraticCurveTo(botHW, bot, botHW - 4, bot);
+    ctx.lineTo(-botHW + 4, bot);
+    ctx.quadraticCurveTo(-botHW, bot, -botHW, bot - 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Vertical ribs
+    ctx.strokeStyle = 'rgba(58, 66, 78, 0.32)';
+    ctx.lineWidth = 1.2;
+    for (const f of [-0.55, 0, 0.55]) {
+      ctx.beginPath();
+      ctx.moveTo(f * topHW, top + 9);
+      ctx.lineTo(f * botHW, bot - 4);
+      ctx.stroke();
+    }
+
+    // Skin-accent band + recycle mark
+    ctx.fillStyle = accent;
+    ctx.beginPath();
+    ctx.moveTo(-topHW + 0.4, top + 2.5);
+    ctx.lineTo(topHW - 0.4, top + 2.5);
+    ctx.lineTo(topHW - 0.9, top + 7);
+    ctx.lineTo(-topHW + 0.9, top + 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.font = '700 13px "Apple Symbols", "Segoe UI Symbol", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(40, 46, 56, 0.55)';
+    ctx.fillText('♻', 0, 6.5);
+
+    // Count badge
+    if (this.trashCount > 1) {
+      ctx.fillStyle = accent;
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(g.side * (topHW - 2), top + 13, 6.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#1a1d22';
+      ctx.font = '800 7.5px "Segoe UI", system-ui, sans-serif';
+      ctx.fillText(this.trashCount > 99 ? '99+' : String(this.trashCount), g.side * (topHW - 2), top + 13.4);
+    }
+
+    // Rim + dark opening when the lid is up
+    ctx.fillStyle = '#d7dee4';
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.ellipse(0, top, topHW + 1.4, 3.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    if (this.trashLid > 0.12) {
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, this.trashLid * 2);
+      ctx.fillStyle = '#262b33';
+      ctx.beginPath();
+      ctx.ellipse(0, top + 0.3, topHW - 1.2, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Hinged lid (hinge on the cat's side, opens toward the cursor)
+    const hingeX = -g.side * (topHW + 1);
+    ctx.save();
+    ctx.translate(hingeX, top - 1);
+    ctx.rotate(-g.side * this.trashLid * 1.65);
+    ctx.scale(g.side, 1);
+    const lidLen = topHW * 2 + 2;
+    const lidGrad = ctx.createLinearGradient(0, -7, 0, 1);
+    lidGrad.addColorStop(0, '#f4f7f9');
+    lidGrad.addColorStop(1, '#a9b3bd');
+    ctx.fillStyle = lidGrad;
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(-0.8, 1);
+    ctx.lineTo(lidLen + 0.8, 1);
+    ctx.quadraticCurveTo(lidLen + 0.4, -6.5, lidLen * 0.5, -7);
+    ctx.quadraticCurveTo(-0.4, -6.5, -0.8, 1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Knob
+    ctx.fillStyle = accent;
+    ctx.beginPath();
+    ctx.ellipse(lidLen * 0.5, -8.2, 4, 2.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.restore();
+
+    // "Drop here" hint pill while hovering
+    if (this.trashHover && this.trashGulpT < 0) {
+      const label = '松手丢进回收站';
+      ctx.save();
+      ctx.font = '700 10.5px "PingFang SC", "Microsoft YaHei", system-ui, sans-serif';
+      const tw = ctx.measureText(label).width + 16;
+      const px = Math.max(tw / 2 + 4, Math.min(this.logicalW - tw / 2 - 4, g.x));
+      const py = g.y - g.h * 0.5 - 30 * g.s - 4;
+      ctx.fillStyle = 'rgba(20, 22, 28, 0.82)';
+      this.roundRect(ctx, px - tw / 2, py - 9, tw, 18, 9);
+      ctx.fill();
+      ctx.fillStyle = accent;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, px, py + 0.5);
+      ctx.restore();
+    }
+  }
+
+  private drawTrashFx(ctx: CanvasRenderingContext2D): void {
+    for (const p of this.trashPapers) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#8b96a3';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-5, -6.5);
+      ctx.lineTo(2.5, -6.5);
+      ctx.lineTo(5, -4);
+      ctx.lineTo(5, 6.5);
+      ctx.lineTo(-5, 6.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(120, 132, 146, 0.6)';
+      ctx.beginPath();
+      ctx.moveTo(-3, -1.5);
+      ctx.lineTo(3, -1.5);
+      ctx.moveTo(-3, 1.5);
+      ctx.lineTo(3, 1.5);
+      ctx.moveTo(-3, 4);
+      ctx.lineTo(1.5, 4);
+      ctx.stroke();
+      ctx.restore();
+    }
+    for (const f of this.trashFx) {
+      const a = f.age < 0.2 ? f.age / 0.2 : Math.max(0, 1 - (f.age - 0.7) / 0.9);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, a));
+      ctx.font = '800 13px "Segoe UI", "PingFang SC", system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#4ade80';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+      ctx.shadowBlur = 4;
+      ctx.fillText(f.text, f.x, f.y - f.age * 26);
+      ctx.restore();
+    }
+  }
+
+  // ---- Flying critter cursor toy ----
+
+  private updateCritter(dt: number, now: number): void {
+    const lx = this.cursorRelX * this.logicalW;
+    const ly = this.cursorRelY * this.logicalH;
+    if (this.lastCursorLX < -9000) {
+      this.lastCursorLX = lx;
+      this.lastCursorLY = ly;
+    } else if (Math.abs(lx - this.lastCursorLX) + Math.abs(ly - this.lastCursorLY) > 0.8) {
+      this.critterLastMoveAt = now;
+      this.lastCursorLX = lx;
+      this.lastCursorLY = ly;
+    }
+    const center = this.spinePoint(0.42, 0);
+    const d = Math.hypot(lx - center.x, ly - center.y);
+    const allowed =
+      this.flyingToysEnabled &&
+      this.cursorPresent &&
+      !this.privacyMode &&
+      !this.trashWanted &&
+      this.trashAmount < 0.05 &&
+      !this.cursorOverCat &&
+      now - this.critterLastMoveAt < 9000 &&
+      lx > 10 &&
+      lx < this.logicalW - 10 &&
+      ly > 10 &&
+      ly < this.logicalH - 10;
+
+    if (!this.critterActive) {
+      if (allowed && d < 215) {
+        this.critterActive = true;
+        this.critterKindIdx =
+          (this.critterKindIdx + 1 + Math.floor(Math.random() * (CRITTER_KINDS.length - 1))) % CRITTER_KINDS.length;
+        this.critterKind = CRITTER_KINDS[this.critterKindIdx];
+        if (this.critterAmount < 0.05) {
+          this.critterX = lx;
+          this.critterY = ly;
+        }
+        this.critterDodgeX = 0;
+        this.critterDodgeY = 0;
+        this.nextSwatAt = now + 700;
+        if (this.leftPaw.mode === 'mouse') this.leftPaw.mode = 'idle';
+      }
+    } else if (!allowed || d > 255) {
+      this.critterActive = false;
+    }
+
+    const on = this.critterActive ? 1 : 0;
+    this.critterAmount += (on - this.critterAmount) * (1 - Math.exp(-9 * dt));
+    this.critterHunt += (on - this.critterHunt) * (1 - Math.exp(-(on ? 2.6 : 4) * dt));
+
+    for (const f of this.critterFx) {
+      f.age += dt;
+      f.x += f.vx * dt;
+      f.y += f.vy * dt;
+      f.vy += 40 * dt;
+    }
+    this.critterFx = this.critterFx.filter((f) => f.age < f.life);
+
+    if (this.critterAmount < 0.01) return;
+
+    const t = this.elapsed;
+    this.critterDodgeX *= Math.exp(-3.2 * dt);
+    this.critterDodgeY *= Math.exp(-3.2 * dt);
+    const tx = lx + Math.sin(t * 2.3) * 4 + Math.sin(t * 5.1) * 1.5 + this.critterDodgeX;
+    const ty = ly + Math.sin(t * 3.1) * 5 + this.critterDodgeY;
+    const k = 1 - Math.exp(-13 * dt);
+    const nx = this.critterX + (tx - this.critterX) * k;
+    const ny = this.critterY + (ty - this.critterY) * k;
+    this.critterVX = (nx - this.critterX) / Math.max(0.001, dt);
+    this.critterVY = (ny - this.critterY) / Math.max(0.001, dt);
+    this.critterX = nx;
+    this.critterY = ny;
+    if (Math.abs(this.critterVX) > 18) {
+      this.critterFacing = this.critterVX > 0 ? 1 : -1;
+    }
+    const speed = Math.hypot(this.critterVX, this.critterVY);
+    this.critterFlap += dt * CRITTER_FLAP_SPEED[this.critterKind] * (1 + Math.min(1, speed / 420) * 0.6);
+
+    // The cat bats at the critter when it flutters within paw range.
+    if (
+      this.catBreed !== 'dafeiyu' &&
+      this.critterActive &&
+      this.critterAmount > 0.7 &&
+      now >= this.nextSwatAt &&
+      now - this.lastAnyKeyAt > 700
+    ) {
+      let paw = this.critterX > this.catCenterX ? this.rightPaw : this.leftPaw;
+      if (paw.mode === 'hold' || paw.mode === 'poke') {
+        paw = paw === this.rightPaw ? this.leftPaw : this.rightPaw;
+      }
+      const sh = this.getLiveShoulder(paw, 0);
+      const dx = this.critterX - sh.x;
+      const dy = this.critterY - sh.y;
+      const dist = Math.max(1, Math.hypot(dx, dy));
+      if (dist < 180 && paw.mode !== 'hold' && paw.mode !== 'poke') {
+        const reach = Math.min(dist, 110);
+        paw.mode = 'swat';
+        paw.pokeTime = 0;
+        paw.target = { x: sh.x + (dx / dist) * reach, y: sh.y + (dy / dist) * reach };
+        paw.impactSquash = 0.6;
+        paw.lastActiveAt = now;
+        if (dist <= 124) {
+          // Close call! The critter darts away with a little sparkle.
+          this.critterDodgeX = (dx / dist) * 38;
+          this.critterDodgeY = (dy / dist) * 28 - 12;
+          for (let i = 0; i < 5; i++) {
+            const a = Math.random() * Math.PI * 2;
+            this.critterFx.push({
+              x: paw.target.x,
+              y: paw.target.y,
+              vx: Math.cos(a) * (40 + Math.random() * 50),
+              vy: Math.sin(a) * (40 + Math.random() * 50) - 20,
+              age: 0,
+              life: 0.45 + Math.random() * 0.25,
+              color: Math.random() < 0.5 ? '#fff2a8' : '#ffd1e8',
+            });
+          }
+          if (paw.side === 'left') this.earTwitchLeft = 1;
+          else this.earTwitchRight = 1;
+        }
+        this.nextSwatAt = now + 750 + Math.random() * 950;
+      } else {
+        this.nextSwatAt = now + 350;
+      }
+    }
+  }
+
+  private drawCritterLayer(ctx: CanvasRenderingContext2D): void {
+    for (const f of this.critterFx) {
+      const a = Math.max(0, 1 - f.age / f.life);
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.fillStyle = f.color;
+      ctx.translate(f.x, f.y);
+      ctx.rotate(f.age * 6);
+      ctx.beginPath();
+      for (let i = 0; i < 4; i++) {
+        const ang = (i / 4) * Math.PI * 2;
+        ctx.lineTo(Math.cos(ang) * 3.4, Math.sin(ang) * 3.4);
+        ctx.lineTo(Math.cos(ang + Math.PI / 4) * 1.1, Math.sin(ang + Math.PI / 4) * 1.1);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    if (this.critterAmount < 0.02) return;
+    const a = this.critterAmount;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, a * 1.2);
+    ctx.translate(this.critterX, this.critterY);
+    const tilt = Math.max(-0.35, Math.min(0.35, this.critterVY / 900));
+    ctx.rotate(tilt * this.critterFacing);
+    // "Poof" morph: pops in from a small sparkle
+    const pop = 0.4 + 0.6 * a + Math.sin(a * Math.PI) * 0.15;
+    ctx.scale(pop * 1.45, pop * 1.45);
+    drawCritter(ctx, this.critterKind, this.critterFlap, this.critterFacing, this.elapsed);
+    ctx.restore();
+  }
+
   // ---- Simulation update ----
 
   private update(dt: number, now: number): void {
@@ -1539,6 +2238,9 @@ export class KuroCatEngine {
       }
     }
     this.updateMoodParticles(dt);
+    this.updateTailFlick();
+    this.updateTrash(dt, now);
+    this.updateCritter(dt, now);
 
     const isTypingRecently = now - this.lastAnyKeyAt < 650;
     const targetHunch = isTypingRecently ? 0.45 + this.typingEnergy * 0.55 : 0;
@@ -1569,7 +2271,9 @@ export class KuroCatEngine {
 
     // Measured spine-shear lean: shifts head & chest cleanly forward-left toward mouse while hips stay anchored!
     let targetLean = 0;
-    if (this.leftPaw.mode === 'mouse') {
+    if (this.trashAmount > 0.45) {
+      targetLean = this.trashSide * (0.18 + this.trashReach * 0.32);
+    } else if (this.leftPaw.mode === 'mouse') {
       const mouseSweepBias = (this.mouseOffsetX / 18) * 0.22;
       targetLean = this.rightPaw.mode === 'poke'
         ? -0.52 + mouseSweepBias
@@ -1588,6 +2292,7 @@ export class KuroCatEngine {
 
     this.petEnergy = Math.max(0, this.petEnergy - dt * (this.cursorOverCat ? 0.22 : 1.15));
     this.lastDt = dt;
+    this.lastDtForFx = dt;
     const wantSquint = this.petEnergy > 0.3 ? 1 : 0;
     this.squintAmount += (wantSquint - this.squintAmount) * (1 - Math.exp(-12 * dt));
     const wantPrivacy = this.privacyMode ? 1 : 0;
@@ -1722,6 +2427,15 @@ export class KuroCatEngine {
       if (now - this.lastAnyKeyAt > 680) {
         paw.mode = 'idle';
       }
+    } else if (paw.mode === 'swat') {
+      paw.pokeTime += dt;
+      if (paw.pokeTime > 0.34) {
+        paw.mode = now - this.lastAnyKeyAt < 650 ? 'curled' : 'idle';
+      }
+    } else if (paw.mode === 'hold') {
+      if (this.trashAmount < 0.45) {
+        paw.mode = 'idle';
+      }
     }
 
     if (paw.mode === 'curled') {
@@ -1739,7 +2453,7 @@ export class KuroCatEngine {
 
     // Unconditionally stable, framerate-independent tracking (ZERO Euler spring overshoot at any FPS!)
     const followRate =
-      (paw.mode === 'poke' ? 42 : paw.mode === 'mouse' ? 32 : 22) *
+      (paw.mode === 'poke' ? 42 : paw.mode === 'mouse' ? 32 : paw.mode === 'swat' ? 34 : paw.mode === 'hold' ? 26 : 22) *
       (1 + this.annoyAmount * 0.6);
     const follow = 1 - Math.exp(-followRate * dt);
     paw.pos.x += (paw.target.x - paw.pos.x) * follow;
@@ -1773,28 +2487,9 @@ export class KuroCatEngine {
     ctx.clearRect(0, 0, cw, ch);
 
     ctx.save();
-    if (this.embedded) {
-      const baseFit = Math.min((cw * 0.86) / this.logicalW, (ch * 0.86) / this.logicalH);
-      const effectiveMul = this.renderScale <= 1.0 ? this.renderScale : 1.0 + (this.renderScale - 1.0) * 0.30;
-      const uniformScale = baseFit * effectiveMul;
-      const drawW = this.logicalW * uniformScale;
-      const drawH = this.logicalH * uniformScale;
-      const offsetX = (cw - drawW) * 0.5;
-      const offsetY = (ch - drawH) * 0.52;
-      ctx.translate(offsetX, offsetY);
-      ctx.scale(uniformScale, uniformScale);
-    } else {
-      const cssW = Math.max(1, window.innerWidth);
-      const dpr = cw / cssW;
-      const fitScale = Math.min(cw / this.logicalW, ch / this.logicalH);
-      const uniformScale = Math.min(fitScale, this.renderScale * dpr);
-      const drawW = this.logicalW * uniformScale;
-      const drawH = this.logicalH * uniformScale;
-      const offsetX = cw - drawW;
-      const offsetY = ch - drawH;
-      ctx.translate(offsetX, offsetY);
-      ctx.scale(uniformScale, uniformScale);
-    }
+    const vt = this.getViewTransform();
+    ctx.translate(vt.ox, vt.oy);
+    ctx.scale(vt.s, vt.s);
 
     const breath = Math.sin(this.breathPhase) * (1 + this.sleepyAmount * 0.25);
     const purrShift = this.squintAmount > 0.4 ? Math.sin(this.elapsed * 22) * 0.45 * this.squintAmount : 0;
@@ -1810,6 +2505,9 @@ export class KuroCatEngine {
         this.drawKeyBubbles(ctx);
         this.drawMouseBadges(ctx);
       }
+      this.drawTrashLayer(ctx, false);
+      this.drawTrashLayer(ctx, true);
+      this.drawCritterLayer(ctx);
       ctx.restore();
       return;
     }
@@ -1821,8 +2519,14 @@ export class KuroCatEngine {
     this.drawMiniMouse(ctx);
     this.drawKeyboard(ctx);
 
+    // Layer 2.5: trash can still emerging from behind the cat's back
+    this.drawTrashLayer(ctx, false);
+
     // Layer 3: Exact measured spine-deformable cat silhouette (ears, cheeks, neck, pear belly, grounded hind feet, eyes & tiny whiskers)
     this.drawCatBody(ctx, breath, purrShift);
+
+    // Layer 3.5: trash can handed out in front (paw grips its rim next)
+    this.drawTrashLayer(ctx, true);
 
     // Layer 4: True-scale velvety cat paws (tapered idle legs / planted diagonal mouse support leg / bent curled chest paw / plump round poking paw!)
     this.drawPaw(ctx, this.leftPaw, breath);
@@ -1837,29 +2541,66 @@ export class KuroCatEngine {
       this.drawMouseBadges(ctx);
     }
 
+    // Layer 6: paper sheets falling into the can & the flying critter toy on top of everything
+    this.drawTrashFx(ctx);
+    this.drawCritterLayer(ctx);
+
     ctx.restore();
   }
 
   private drawTail(ctx: CanvasRenderingContext2D): void {
     // Exact ORIG 0.3s tail: leaves hip slightly higher, flat horizontal start curving cleanly up into a soft horizontal S-hook!
     // When annoyed/impatient, cats lash their tail in a snappy traveling S-wave from base to tip.
-    const gentleDrift = Math.sin(this.elapsed * 0.9) * 1.4;
+    // Every mood has its own tail language (plus random idle swishes so a still cat never looks frozen).
+    const t = this.elapsed;
+    const gentleDrift = Math.sin(t * 0.9) * 1.4;
     const annoy = this.annoyAmount;
+    const calm = Math.max(0, 1 - annoy);
     const lash = (p: number) => Math.tanh(Math.sin(p) * 1.55) / Math.tanh(1.55);
     const w1 = annoy > 0.01 ? lash(this.tailWagPhase) * annoy : 0;
     const w2 = annoy > 0.01 ? lash(this.tailWagPhase - 0.65) * annoy : 0;
     const w3 = annoy > 0.01 ? lash(this.tailWagPhase - 1.25) * annoy : 0;
 
+    // Happy: tail held high with a fast little tip quiver.
+    const happy = this.happyAmount * calm;
+    // Relaxed (music): slow, broad, beat-like sway.
+    const relax = this.relaxAmount * calm * (1 - happy);
+    // Curious: raised question-mark hook with a thoughtful tip twitch.
+    const curious = this.curiousAmount * calm;
+    // Sleepy: tail lowered and almost still.
+    const sleepy = this.sleepyAmount * calm;
+    // Hunting a flying critter: low tail with a twitchy, excited tip.
+    const hunt = this.critterHunt * calm;
+    // Idle swish: a decaying traveling wave triggered every few seconds.
+    const fl = this.tailFlick;
+    const flickWave = fl > 0.001 ? Math.sin((1 - fl) * Math.PI * 3.2) * fl * this.tailFlickSign * calm : 0;
+    const flickWaveLag = fl > 0.001 ? Math.sin((1 - fl) * Math.PI * 3.2 - 0.9) * fl * this.tailFlickSign * calm : 0;
+
+    const relaxSway = Math.sin(t * 2.2);
+    const relaxSwayLag = Math.sin(t * 2.2 - 0.7);
+    const happyQuiver = Math.sin(t * 19) * 2.4 + Math.sin(t * 3.1) * 3;
+    const curiousTwitch = Math.sin(t * 4.6) * Math.max(0, Math.sin(t * 1.3)) * 5;
+    const huntTwitch = Math.sin(t * 13) * 4 + Math.sin(t * 5.7) * 3;
+    const sleepySway = Math.sin(t * 0.7) * 3;
+
     const hipRight = this.spinePoint(0.84, 0);
 
     const startX = hipRight.x + 56;
     const startY = hipRight.y - 2;
-    const cp1X = startX + 34 - annoy * 4 + w1 * 8;
-    const cp1Y = startY + 4 + gentleDrift * 0.25 + w1 * 18;
-    const cp2X = startX + 38 + w2 * 20;
-    const cp2Y = startY - 34 + gentleDrift * 0.45 - annoy * 10 + w2 * 34;
-    const endX = startX + 70 + gentleDrift * 0.35 - annoy * 6 + w3 * 26;
-    const endY = startY - 35 + gentleDrift - annoy * 14 + w3 * 44;
+    const cp1X = startX + 34 - annoy * 4 + w1 * 8 + flickWaveLag * 5 + relaxSwayLag * relax * 5;
+    const cp1Y =
+      startY + 4 + gentleDrift * 0.25 + w1 * 18 - happy * 8 + sleepy * 6 + flickWaveLag * 6;
+    const cp2X =
+      startX + 38 + w2 * 20 + relaxSwayLag * relax * 11 + flickWaveLag * 10 - happy * 6 - curious * 4;
+    const cp2Y =
+      startY - 34 + gentleDrift * 0.45 - annoy * 10 + w2 * 34 - happy * 22 - curious * 16 + sleepy * 22 +
+      hunt * 10 + flickWave * 8;
+    const endX =
+      startX + 70 + gentleDrift * 0.35 - annoy * 6 + w3 * 26 + relaxSway * relax * 18 + flickWave * 18 +
+      happy * (happyQuiver - 10) + curious * (curiousTwitch - 22) + sleepy * (8 + sleepySway) + hunt * (huntTwitch + 6);
+    const endY =
+      startY - 35 + gentleDrift - annoy * 14 + w3 * 44 + Math.cos(t * 2.2) * relax * 6 - happy * 30 -
+      curious * 16 + sleepy * 30 + hunt * 18 + flickWave * 12;
     const tipAngle = Math.atan2(endY - cp2Y, endX - cp2X);
 
     ctx.save();
@@ -2463,8 +3204,8 @@ export class KuroCatEngine {
         // Expressive pupil hugging lower rim when looking down at keyboard!
         const px = this.eyeLookX * (1 + this.curiousAmount * 0.35);
         const py = this.eyeLookY * (1 + this.curiousAmount * 0.35);
-        const pupilRx = 6.2;
-        const pupilRy = 8.8;
+        const pupilRx = 6.2 * (1 + this.critterHunt * 0.38);
+        const pupilRy = 8.8 * (1 + this.critterHunt * 0.22);
 
         ctx.fillStyle = isRagdoll ? '#101624' : '#0e0e10';
         ctx.beginPath();
@@ -2509,6 +3250,7 @@ export class KuroCatEngine {
     const rPress = this.mouseRightPress;
     const mPress = Math.max(this.mouseMiddlePress, this.mouseScrollFlash);
     const colors = this.getMouseButtonColors();
+    const th = this.deskTheme;
 
     ctx.save();
     ctx.translate(mx, my);
@@ -2519,7 +3261,12 @@ export class KuroCatEngine {
     ctx.shadowColor = 'rgba(0, 0, 0, 0.28)';
     ctx.shadowBlur = 7;
     ctx.shadowOffsetY = 3.5;
-    ctx.fillStyle = '#c8cac4';
+    if (th.underglow) {
+      ctx.shadowColor = th.underglow;
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 2;
+    }
+    ctx.fillStyle = th.mouseBase;
     ctx.beginPath();
     ctx.ellipse(0, 1.8, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -2527,8 +3274,8 @@ export class KuroCatEngine {
 
     // Main mouse palm shell (rear/palm at TOP closest to cat; split L/R buttons at BOTTOM pointing away from cat)
     const palmGrad = ctx.createLinearGradient(0, -ry, 0, 2);
-    palmGrad.addColorStop(0.0, '#ecece7');
-    palmGrad.addColorStop(1.0, '#f4f4f0');
+    palmGrad.addColorStop(0.0, th.mouseShellTop);
+    palmGrad.addColorStop(1.0, th.mouseShellBottom);
     ctx.fillStyle = palmGrad;
     ctx.beginPath();
     ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
@@ -2561,7 +3308,7 @@ export class KuroCatEngine {
     ctx.lineTo(rx + 2, ry + 2);
     ctx.lineTo(0, ry + 2);
     ctx.closePath();
-    ctx.fillStyle = lPress > 0.08 ? colors.left : '#fafaf7';
+    ctx.fillStyle = lPress > 0.08 ? colors.left : th.mouseButton;
     ctx.fill();
     if (lPress > 0.08) {
       ctx.fillStyle = `rgba(18, 22, 28, ${(0.18 * lPress).toFixed(3)})`;
@@ -2576,7 +3323,7 @@ export class KuroCatEngine {
     ctx.lineTo(0, ry + 2);
     ctx.lineTo(-rx - 2, ry + 2);
     ctx.closePath();
-    ctx.fillStyle = rPress > 0.08 ? colors.right : '#fafaf7';
+    ctx.fillStyle = rPress > 0.08 ? colors.right : th.mouseButton;
     ctx.fill();
     if (rPress > 0.08) {
       ctx.fillStyle = `rgba(18, 22, 28, ${(0.18 * rPress).toFixed(3)})`;
@@ -2585,13 +3332,13 @@ export class KuroCatEngine {
     }
 
     // Crisp horizontal palm-to-button seam & vertical center L/R split line
-    ctx.strokeStyle = 'rgba(42, 45, 52, 0.56)';
+    ctx.strokeStyle = th.mouseSeam;
     ctx.lineWidth = 1.25;
     ctx.beginPath();
     traceSeam();
     ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(42, 45, 52, 0.66)';
+    ctx.strokeStyle = th.mouseSeam;
     ctx.lineWidth = 1.3;
     ctx.beginPath();
     ctx.moveTo(0, 0.6);
@@ -2599,11 +3346,11 @@ export class KuroCatEngine {
     ctx.stroke();
 
     // Recessed scroll wheel housing + interactive wheel (middle click & scroll glow)
-    ctx.fillStyle = '#2d2f36';
+    ctx.fillStyle = th.mouseWheelHousing;
     this.roundRect(ctx, -2.5, 4.2, 5.0, 9.4, 2.5);
     ctx.fill();
 
-    ctx.fillStyle = mPress > 0.12 ? colors.middle : '#6b6f78';
+    ctx.fillStyle = mPress > 0.12 ? colors.middle : th.mouseWheel;
     this.roundRect(ctx, -1.7, 5.0 + this.mouseMiddlePress * 0.8, 3.4, 7.6, 1.7);
     ctx.fill();
 
@@ -2624,15 +3371,15 @@ export class KuroCatEngine {
     const rxLbl = isCatFacing ? -7.4 : 7.4;
     const lyBase = isCatFacing ? 14.0 : -14.0;
     const pressDir = isCatFacing ? 0.9 : -0.9;
-    ctx.fillStyle = lPress > 0.12 ? '#14161a' : 'rgba(72, 76, 86, 0.56)';
+    ctx.fillStyle = lPress > 0.12 ? '#14161a' : th.mouseLegend;
     ctx.fillText('L', lx, lyBase + lPress * pressDir);
-    ctx.fillStyle = rPress > 0.12 ? '#ffffff' : 'rgba(72, 76, 86, 0.56)';
+    ctx.fillStyle = rPress > 0.12 ? '#ffffff' : th.mouseLegend;
     ctx.fillText('R', rxLbl, lyBase + rPress * pressDir);
 
     ctx.restore(); // end mouse clip
 
     // Crisp outer silhouette stroke
-    ctx.strokeStyle = '#2b2d34';
+    ctx.strokeStyle = th.mouseOutline;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
@@ -2642,7 +3389,8 @@ export class KuroCatEngine {
   }
 
   private ensureKeyboardCache(): HTMLCanvasElement | null {
-    const cacheKey = `${this.keyboardLayout}:${this.keyboardOrientation}:${this.kbWidth}x${this.kbHeight}`;
+    const th = this.deskTheme;
+    const cacheKey = `${this.keyboardLayout}:${this.keyboardOrientation}:${this.kbWidth}x${this.kbHeight}:${th.id}`;
     if (this.kbCacheCanvas && this.kbCacheKey === cacheKey) {
       return this.kbCacheCanvas;
     }
@@ -2676,23 +3424,23 @@ export class KuroCatEngine {
 
     // Base shadow (baked once instead of shadowBlur=11 every frame!)
     octx.save();
-    octx.shadowColor = 'rgba(0, 0, 0, 0.34)';
-    octx.shadowBlur = 11;
-    octx.shadowOffsetY = 5;
-    octx.fillStyle = '#191a1e';
+    octx.shadowColor = th.underglow ?? 'rgba(0, 0, 0, 0.34)';
+    octx.shadowBlur = th.underglow ? 14 : 11;
+    octx.shadowOffsetY = th.underglow ? 3 : 5;
+    octx.fillStyle = th.caseShadow;
     this.trapezoidPath(octx, topHalfW, botHalfW, -halfH + 3.5, halfH + 5.5, 6.5);
     octx.fill();
     octx.restore();
 
-    octx.fillStyle = '#24262c';
-    octx.strokeStyle = '#363840';
+    octx.fillStyle = th.caseFill;
+    octx.strokeStyle = th.caseStroke;
     octx.lineWidth = 1.1;
     this.trapezoidPath(octx, topHalfW, botHalfW, -halfH, halfH, 6.5);
     octx.fill();
     octx.stroke();
 
     // Bright clean light-grey inner keybed matching ORIG 0.3s bright airy white keyboard!
-    octx.fillStyle = '#d4d6d1';
+    octx.fillStyle = th.keybed;
     this.trapezoidPath(octx, topHalfW - 5, botHalfW - 5, -halfH + 4, halfH - 4, 3.5);
     octx.fill();
 
@@ -2718,14 +3466,14 @@ export class KuroCatEngine {
       const y = -innerH / 2 + screenRowTop * rowH + gap * 0.5;
       const h = rSpan * rowH - gap - 0.8;
 
-      let topColor = '#f8f8f5';
-      let sideColor = '#d0d2cc';
+      let topColor = th.keyTop;
+      let sideColor = th.keySide;
       if (key.accent === 'orange') {
-        topColor = '#f4a524';
-        sideColor = '#c27a10';
+        topColor = th.accentTop;
+        sideColor = th.accentSide;
       } else if (key.accent === 'mod') {
-        topColor = '#efefeb';
-        sideColor = '#c7c9c3';
+        topColor = th.modTop;
+        sideColor = th.modSide;
       }
 
       octx.fillStyle = sideColor;
@@ -2756,7 +3504,7 @@ export class KuroCatEngine {
           octx.rotate(Math.PI);
         }
         octx.font = `700 ${fontSize}px "Segoe UI", system-ui, sans-serif`;
-        octx.fillStyle = key.accent === 'orange' ? '#ffffff' : '#2c2f36';
+        octx.fillStyle = key.accent === 'orange' ? th.accentLegend : th.legend;
         octx.textAlign = 'center';
         octx.textBaseline = 'middle';
         octx.fillText(legend, 0, 0);
@@ -2776,6 +3524,7 @@ export class KuroCatEngine {
     const layout = getKeyboardLayout(this.keyboardLayout);
     const isCatFacing = this.keyboardOrientation === 'cat';
     const is108 = this.keyboardLayout === '108';
+    const th = this.deskTheme;
     const padX = 7;
     const padY = 6;
     const innerW = this.kbWidth - padX * 2;
@@ -2834,12 +3583,12 @@ export class KuroCatEngine {
 
       // Clear the unpressed keycap top strip behind the depressed key so it looks cleanly sunken
       if (cached && press > 0.01) {
-        ctx.fillStyle = '#d4d6d1';
+        ctx.fillStyle = th.keybed;
         ctx.fillRect(x - 0.3, baseY - 0.3, w + 0.6, h + 2.0);
       }
 
-      let topColor = '#f8f8f5';
-      let sideColor = '#d0d2cc';
+      let topColor = th.keyTop;
+      let sideColor = th.keySide;
       if (press > 0.14) {
         topColor = this.customSkin
           ? this.customSkin.accentColor
@@ -2856,11 +3605,11 @@ export class KuroCatEngine {
               ? '#4690d8'
               : '#8cb014';
       } else if (key.accent === 'orange') {
-        topColor = '#f4a524';
-        sideColor = '#c27a10';
+        topColor = th.accentTop;
+        sideColor = th.accentSide;
       } else if (key.accent === 'mod') {
-        topColor = '#efefeb';
-        sideColor = '#c7c9c3';
+        topColor = th.modTop;
+        sideColor = th.modSide;
       }
 
       ctx.fillStyle = sideColor;
@@ -2895,8 +3644,8 @@ export class KuroCatEngine {
         ctx.fillStyle = press > 0.14
           ? '#111214'
           : key.accent === 'orange'
-            ? '#ffffff'
-            : '#2c2f36';
+            ? th.accentLegend
+            : th.legend;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(legend, 0, 0);
@@ -3953,7 +4702,7 @@ export class KuroCatEngine {
         const py = this.eyeLookY * (1 + this.curiousAmount * 0.35);
         ctx.fillStyle = s.pupilColor;
         ctx.beginPath();
-        ctx.ellipse(px, py, 6.2, 8.8, 0, 0, Math.PI * 2);
+        ctx.ellipse(px, py, 6.2 * (1 + this.critterHunt * 0.38), 8.8 * (1 + this.critterHunt * 0.22), 0, 0, Math.PI * 2);
         ctx.fill();
 
         if (s.eyeCatchlight) {

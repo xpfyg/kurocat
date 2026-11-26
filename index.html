@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>KuroCat</title>
+    <title>MiniCat</title>
   </head>
   <body>
     <canvas id="pet-canvas"></canvas>
@@ -16,7 +16,7 @@
     </div>
 
     <div id="context-menu" class="context-menu hidden">
-      <div class="menu-header" id="menu-header">🐈‍⬛ KuroCat 小黑猫</div>
+      <div class="menu-header" id="menu-header">🐈‍⬛ MiniCat 小黑猫</div>
       <div class="menu-scale-row">
         <span class="menu-scale-label">角色外观（支持 MCP 定制）</span>
         <div class="breed-pills" id="breed-pills">
@@ -50,6 +50,14 @@
         <span>开机自动启动</span>
         <span class="menu-check" id="chk-autostart"></span>
       </button>
+      <button class="menu-item" data-action="toggle-flying" title="鼠标靠近小猫时变成会飞的小动物，逗猫玩">
+        <span>逗猫小飞虫</span>
+        <span class="menu-check" id="chk-flying">✓</span>
+      </button>
+      <button class="menu-item" data-action="toggle-trash" title="拖动文件时小猫掏出垃圾桶，丢进去的文件进入回收站">
+        <span>拖文件掏出垃圾桶</span>
+        <span class="menu-check" id="chk-trash">✓</span>
+      </button>
       <div class="menu-sep"></div>
       <button class="menu-item" data-action="toggle-mcp">
         <span>开启 MCP 扩展</span>
@@ -70,6 +78,10 @@
           <button class="kb-pill active" data-kborient="cat">面向猫咪</button>
           <button class="kb-pill" data-kborient="viewer">面向观众</button>
         </div>
+      </div>
+      <div class="menu-scale-row">
+        <span class="menu-scale-label">键鼠套装</span>
+        <div class="theme-pills" id="theme-pills"></div>
       </div>
       <div class="menu-scale-row">
         <div class="scale-header">
@@ -96,7 +108,7 @@
       <div class="menu-sep"></div>
       <button class="menu-item" data-action="desktop-shortcut" id="btn-desktop-shortcut">
         <span>创建桌面图标</span>
-        <span class="menu-hint" id="shortcut-hint">KuroCat</span>
+        <span class="menu-hint" id="shortcut-hint">MiniCat</span>
       </button>
       <button class="menu-item" data-action="reset-pos">
         <span>重置位置到右下角</span>
@@ -106,7 +118,7 @@
         <span class="menu-hint" id="update-hint">v4.8.0</span>
       </button>
       <button class="menu-item danger" data-action="quit">
-        <span>退出 KuroCat</span>
+        <span>退出 MiniCat</span>
       </button>
     </div>
 

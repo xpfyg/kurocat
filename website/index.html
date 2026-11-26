@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>KuroCat · xpfyg 的开源桌面猫咪伴侣</title>
-  <meta name="description" content="KuroCat 是 xpfyg 维护的开源 Windows 与 macOS 桌面键鼠猫咪伴侣，支持多款皮肤、密码防偷窥、双键盘布局与 AI MCP 定制。提供 GitHub Release 官方下载。" />
-  <meta property="og:title" content="KuroCat · xpfyg 的开源桌面猫咪伴侣" />
+  <title>MiniCat · xpfyg 的开源桌面猫咪伴侣</title>
+  <meta name="description" content="MiniCat 是 xpfyg 维护的开源 Windows 与 macOS 桌面键鼠猫咪伴侣，支持多款皮肤、密码防偷窥、双键盘布局与 AI MCP 定制。提供 GitHub Release 官方下载。" />
+  <meta property="og:title" content="MiniCat · xpfyg 的开源桌面猫咪伴侣" />
   <meta property="og:description" content="一只会敲键盘的小黑猫，住进你的 Windows 或 macOS 桌面。在线试玩并从 GitHub Release 免费下载。" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://37lj1lcl30ek76wo2d9.traesite.cn/" />
@@ -21,10 +21,10 @@
   <div class="ticker" aria-hidden="true">
     <div class="ticker-track">
       <span class="ticker-group">
-        <span>KUROCAT</span><span>一只会打字的桌面小黑猫</span><span>OPEN SOURCE</span><span>WINDOWS / MACOS / LINUX</span><span>完全免费 · 无广告</span><span>MIT LICENSE</span>
+        <span>MINICAT</span><span>一只会打字的桌面小黑猫</span><span>OPEN SOURCE</span><span>WINDOWS / MACOS / LINUX</span><span>完全免费 · 无广告</span><span>MIT LICENSE</span>
       </span>
       <span class="ticker-group">
-        <span>KUROCAT</span><span>一只会打字的桌面小黑猫</span><span>OPEN SOURCE</span><span>WINDOWS / MACOS / LINUX</span><span>完全免费 · 无广告</span><span>MIT LICENSE</span>
+        <span>MINICAT</span><span>一只会打字的桌面小黑猫</span><span>OPEN SOURCE</span><span>WINDOWS / MACOS / LINUX</span><span>完全免费 · 无广告</span><span>MIT LICENSE</span>
       </span>
     </div>
   </div>
@@ -35,8 +35,8 @@
         <a class="brand-back" href="https://github.com/xpfyg" target="_blank" rel="noopener" aria-label="访问 xpfyg 的 GitHub 主页">xpfyg</a>
         <span class="brand-sep">/</span>
         <a class="brand-current" href="#top">
-          <img class="nav-icon" src="./assets/kurocat-icon.png" alt="KuroCat" width="20" height="20" />
-          <span>KuroCat</span>
+          <img class="nav-icon" src="./assets/kurocat-icon.png" alt="MiniCat" width="20" height="20" />
+          <span>MiniCat</span>
           <span class="ver-pill" id="nav-ver-pill">v4.8.3</span>
         </a>
       </div>
@@ -45,6 +45,7 @@
         <a href="#download">立即下载</a>
         <a href="#features">核心特性</a>
         <a href="#mcp">AI 捏猫</a>
+        <a href="./privacy.html">隐私协议</a>
         <a href="https://github.com/xpfyg/kurocat" target="_blank" rel="noopener">GitHub</a>
       </nav>
     </div>
@@ -54,7 +55,7 @@
     <section class="hero-stage reveal visible" id="playground">
       <div class="hero-copy">
         <div class="hero-kicker">
-          <img class="hero-app-icon" src="./assets/kurocat-icon.png" alt="KuroCat 图标" width="34" height="34" />
+          <img class="hero-app-icon" src="./assets/kurocat-icon.png" alt="MiniCat 图标" width="34" height="34" />
           <span class="kicker-tag">xpfyg</span>
           <span class="kicker-dash">—</span>
           <span class="kicker-text">Independent Developer</span>
@@ -132,7 +133,7 @@
           </div>
 
           <div class="canvas-viewport backdrop-dark" id="canvas-viewport">
-            <canvas id="kurocat-canvas" aria-label="KuroCat 实时交互试玩画布"></canvas>
+            <canvas id="kurocat-canvas" aria-label="MiniCat 实时交互试玩画布"></canvas>
             <div class="stage-hint" id="stage-hint">
               <span>⌨️ 敲键盘</span>
               <span>🖱️ 点左/右键</span>
@@ -165,6 +166,7 @@
                 <button class="chip-btn active" id="btn-bubbles" type="button" title="开关悬浮按键气泡">💬 气泡</button>
                 <button class="chip-btn active" id="btn-purr" type="button" title="开关摸头呼噜声">🔊 呼噜</button>
                 <button class="chip-btn" id="btn-music-demo" type="button" title="播放演示轻音乐，看猫咪戴上耳机听歌">🎧 听歌</button>
+                <button class="chip-btn" id="btn-trash-demo" type="button" title="模拟拖动文件：小猫从背后掏出垃圾桶，也可以直接把文件拖进来试试">🗑️ 回收</button>
               </div>
             </div>
 
@@ -180,6 +182,11 @@
               </div>
             </div>
 
+            <div class="dock-row theme-row">
+              <span class="dock-label">键鼠</span>
+              <div class="mood-pills" id="desk-theme-pills" role="group" aria-label="键盘鼠标套装"></div>
+            </div>
+
             <div class="dock-row privacy-row">
               <span class="dock-label">密码</span>
               <input id="web-pwd-test" class="pwd-test-input" type="password" autocomplete="off" placeholder="点此输入密码，看猫咪闭眼…" aria-label="密码防偷窥演示输入框" />
@@ -193,7 +200,7 @@
             </div>
           </div>
         </div>
-        <div class="stage-caption">FIG. 01 — 真实渲染引擎 · 6 种心情可切换试玩</div>
+        <div class="stage-caption">FIG. 01 — 真实渲染引擎 · 6 种心情可切换试玩 · 鼠标靠近小猫会变成小飞虫逗猫</div>
       </div>
     </section>
 
@@ -247,7 +254,7 @@
             <span class="dl-tag tag-lime">推荐</span>
           </div>
           <p class="dl-desc">
-            开箱即 65% 紧凑机械键盘，自动创建桌面 <code>KuroCat</code> 图标、开始菜单与系统卸载入口；
+            开箱即 65% 紧凑机械键盘，自动创建桌面 <code>MiniCat</code> 图标、开始菜单与系统卸载入口；
             右键随时切换 <strong>108 键全尺寸小键盘</strong>，内置自动更新。
           </p>
           <div class="dl-meta">
@@ -326,11 +333,11 @@
           <div class="tip-title">🍎 macOS 首次打开（仅需一次）</div>
           <p class="tip-body">
             开源未公证应用若提示「无法验证开发者」或「已损坏」，打开终端粘贴执行右侧命令即可解除隔离；
-            随后在「系统设置 → 隐私与安全性」中为 <code>KuroCat</code> 勾选<strong>辅助功能</strong>与<strong>输入监控</strong>。
+            随后在「系统设置 → 隐私与安全性」中为 <code>MiniCat</code> 勾选<strong>辅助功能</strong>与<strong>输入监控</strong>。
           </p>
         </div>
         <div class="cli-pill">
-          <code id="macos-xattr-cmd">xattr -cr /Applications/KuroCat.app && open /Applications/KuroCat.app</code>
+          <code id="macos-xattr-cmd">xattr -cr /Applications/MiniCat.app && open /Applications/MiniCat.app</code>
           <button class="copy-trigger" id="copy-xattr-btn" type="button">复制命令</button>
         </div>
       </div>
@@ -362,7 +369,7 @@
           <p class="tip-body">
             <strong>单机与常规游戏</strong>：全屏优化或无边框窗口化下保持 Z 序置顶且不抢焦点，建议开启「锁定鼠标穿透」，按住 <code>Alt</code> 可临时解锁；
             若游戏以管理员权限运行，右键托盘选择「以管理员身份重启」。<br />
-            <strong>直播录屏</strong>：OBS 添加「窗口捕获 → KuroCat」叠加。<br />
+            <strong>直播录屏</strong>：OBS 添加「窗口捕获 → MiniCat」叠加。<br />
             <strong>强内核反作弊网游</strong>：游玩前右键托盘开启「暂停监听并隐藏（游戏反作弊护航）」。
           </p>
         </div>
@@ -443,7 +450,7 @@
               </div>
             </div>
             <div class="media-frame">
-              <img src="./assets/showcase-108key.webp" alt="KuroCat 65% 与 108 键全尺寸及双视角对比展示" loading="lazy" />
+              <img src="./assets/showcase-108key.webp" alt="MiniCat 65% 与 108 键全尺寸及双视角对比展示" loading="lazy" />
             </div>
           </div>
         </article>
@@ -452,7 +459,7 @@
           <span class="card-index" aria-hidden="true">03</span>
           <div class="split-grid reverse">
             <div class="media-frame">
-              <img src="./assets/showcase-mouse.webp" alt="KuroCat 独立鼠标左右键识别与内置新版本提醒展示" loading="lazy" />
+              <img src="./assets/showcase-mouse.webp" alt="MiniCat 独立鼠标左右键识别与内置新版本提醒展示" loading="lazy" />
             </div>
             <div>
               <div class="eyebrow">Independent L / R / M · Auto Updater</div>
@@ -520,21 +527,21 @@
             <div class="eyebrow">Stdio + Local HTTP · 127.0.0.1:27420</div>
             <h3 class="card-headline">无需 Node.js<br />无需 Python</h3>
             <p class="card-body">
-              KuroCat 原生内置双模式 MCP 服务端。右键猫咪点「复制 MCP 配置」，
+              MiniCat 原生内置双模式 MCP 服务端。右键猫咪点「复制 MCP 配置」，
               粘贴进 <strong>Claude Desktop / Cursor / Antigravity / Windsurf</strong>，
               即可用自然语言捏出任何毛色、虎斑、三花、胎记斑块与主题高亮，实时热更新无需重启。
             </p>
 
             <div class="prompt-chips">
-              <button class="prompt-chip" type="button" data-prompt="帮我用 KuroCat MCP 新增一只英短蓝猫，琥珀色大眼睛、浅灰蓝键盘高亮，并立刻切过去">
-                <span>💬 “帮我用 KuroCat MCP 捏一只英短蓝猫并切过去”</span>
+              <button class="prompt-chip" type="button" data-prompt="帮我用 MiniCat MCP 新增一只英短蓝猫，琥珀色大眼睛、浅灰蓝键盘高亮，并立刻切过去">
+                <span>💬 “帮我用 MiniCat MCP 捏一只英短蓝猫并切过去”</span>
                 <em>复制</em>
               </button>
-              <button class="prompt-chip" type="button" data-prompt="看这张我家猫的照片，用 KuroCat MCP 按它的花色、耳尖和斑块位置给我定制一只专属桌宠！">
+              <button class="prompt-chip" type="button" data-prompt="看这张我家猫的照片，用 MiniCat MCP 按它的花色、耳尖和斑块位置给我定制一只专属桌宠！">
                 <span>📸 “按这张照片，给我定制一只专属桌宠！”</span>
                 <em>复制</em>
               </button>
-              <button class="prompt-chip" type="button" data-prompt="把 KuroCat 缩放到 85%，切换为 108 键全尺寸键盘和面向观众视角">
+              <button class="prompt-chip" type="button" data-prompt="把 MiniCat 缩放到 85%，切换为 108 键全尺寸键盘和面向观众视角">
                 <span>⚙️ “缩放到 85%，切到 108 键面向观众”</span>
                 <em>复制</em>
               </button>
@@ -563,10 +570,11 @@
 
   <footer>
     <div class="footer-brand">
-      <span class="footer-mark">KuroCat</span>
+      <span class="footer-mark">MiniCat</span>
       <span class="footer-note">xpfyg · MIT Open Source · 2026</span>
     </div>
     <div class="footer-links">
+      <a href="./privacy.html">隐私协议</a>
       <a href="https://github.com/xpfyg" target="_blank" rel="noopener">GitHub</a>
       <a href="https://github.com/xpfyg/kurocat/releases" target="_blank" rel="noopener">Releases</a>
       <a href="https://github.com/xpfyg/kurocat" target="_blank" rel="noopener">源码</a>

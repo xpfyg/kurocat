@@ -424,3 +424,44 @@ html.win7-ulw-mode .update-toast {
     transform: translate(-50%, 0) scale(1);
   }
 }
+
+.theme-pills {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+}
+
+.theme-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e5e7eb;
+  border-radius: 6px;
+  padding: 4.5px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s ease;
+}
+
+.theme-pill .theme-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.theme-pill:hover {
+  background: rgba(200, 245, 56, 0.18);
+  border-color: rgba(200, 245, 56, 0.45);
+}
+
+.theme-pill.active {
+  background: #c8f538;
+  color: #111214;
+  border-color: #c8f538;
+  font-weight: 700;
+}

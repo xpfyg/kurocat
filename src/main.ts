@@ -2,10 +2,12 @@ import './style.css';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { KuroCatEngine, type KeyboardOrientation } from './catEngine';
 import { catAudio } from './audio';
 import { DEFAULT_BUILTIN_CATS, type CatSkinConfig } from './catSkins';
 import type { KeyboardLayoutId } from './keyboardLayout';
+import { DESK_THEMES } from './deskThemes';
 
 interface AppSettings {
   x: number | null;
@@ -22,6 +24,15 @@ interface AppSettings {
   keyboardLayout: KeyboardLayoutId;
   keyboardOrientation: KeyboardOrientation;
   privacyPasswordGuard: boolean;
+  deskTheme: string;
+  flyingToys: boolean;
+  trashHelper: boolean;
+}
+
+interface FileDragInfo {
+  active: boolean;
+  count: number;
+  side: string;
 }
 
 type InputEvent =
@@ -85,6 +96,9 @@ let settings: AppSettings = {
   keyboardLayout: '65',
   keyboardOrientation: 'cat',
   privacyPasswordGuard: true,
+  deskTheme: 'classic',
+  flyingToys: true,
+  trashHelper: true,
 };
 
 let catList: CatSkinConfig[] = [...DEFAULT_BUILTIN_CATS];
@@ -92,6 +106,7 @@ let catList: CatSkinConfig[] = [...DEFAULT_BUILTIN_CATS];
 const canvas = document.getElementById('pet-canvas') as HTMLCanvasElement;
 const menuEl = document.getElementById('context-menu') as HTMLDivElement;
 const breedPillsEl = document.getElementById('breed-pills') as HTMLDivElement;
+const themePillsEl = document.getElementById('theme-pills') as HTMLDivElement | null;
 const scaleSliderEl = document.getElementById('scale-slider') as HTMLInputElement;
 const scaleValueEl = document.getElementById('scale-value') as HTMLButtonElement;
 const updateToastEl = document.getElementById('update-toast') as HTMLDivElement;
@@ -114,6 +129,24 @@ function renderBreedPills(): void {
     btn.style.setProperty('--pill-accent', accent);
     btn.classList.toggle('active', cat.id === settings.catBreed);
     breedPillsEl.appendChild(btn);
+  }
+}
+
+function renderThemePills(): void {
+  if (!themePillsEl) return;
+  themePillsEl.innerHTML = '';
+  for (const theme of DESK_THEMES) {
+    const btn = document.createElement('button');
+    btn.className = 'theme-pill';
+    btn.dataset.desktheme = theme.id;
+    btn.title = `${theme.name} 键盘 + 鼠标`;
+    const sw = document.createElement('span');
+    sw.className = 'theme-swatch';
+    sw.style.background = `linear-gradient(135deg, ${theme.keyTop} 0 50%, ${theme.swatch} 50% 100%)`;
+    btn.appendChild(sw);
+    btn.appendChild(document.createTextNode(theme.name));
+    btn.classList.toggle('active', theme.id === (settings.deskTheme || 'classic'));
+    themePillsEl.appendChild(btn);
   }
 }
 
@@ -141,6 +174,8 @@ function syncMenuUI(): void {
   setCheck('chk-top', settings.alwaysOnTop);
   setCheck('chk-autostart', settings.autostart);
   setCheck('chk-mcp', settings.mcpEnabled);
+  setCheck('chk-flying', settings.flyingToys !== false);
+  setCheck('chk-trash', settings.trashHelper !== false);
 
   if (!sliderDragging) {
     updateScaleSliderVisual(settings.scale);
@@ -157,17 +192,21 @@ function syncMenuUI(): void {
 
   const activeCat = catList.find((c) => c.id === settings.catBreed) ?? catList[0];
   renderBreedPills();
+  renderThemePills();
 
   const headerEl = document.getElementById('menu-header');
   if (headerEl && activeCat) {
     const emoji = activeCat.emoji || '🐱';
-    headerEl.textContent = `${emoji} KuroCat ${activeCat.name}`;
+    headerEl.textContent = `${emoji} MiniCat ${activeCat.name}`;
     headerEl.style.color = activeCat.accentColor || '#c8f538';
   }
 
   engine.showKeyBubbles = settings.showKeyBubbles;
   engine.setCatAppearance(activeCat?.id || 'black', activeCat);
   engine.setKeyboardConfig(kbLayout, kbOrient);
+  engine.setDeskTheme(settings.deskTheme || 'classic');
+  engine.setFlyingToysEnabled(settings.flyingToys !== false);
+  if (settings.trashHelper === false) engine.setFileDrag(false);
   if (!sliderDragging) {
     engine.setRenderScale(settings.scale);
   }
@@ -239,7 +278,7 @@ async function createDesktopShortcut(): Promise<void> {
       hint.textContent = '✓ 已创建';
       hint.classList.add('copied');
       setTimeout(() => {
-        hint.textContent = 'KuroCat';
+        hint.textContent = 'MiniCat';
         hint.classList.remove('copied');
       }, 1800);
     }
@@ -523,6 +562,60 @@ async function bootstrap(): Promise<void> {
     engine.setMusicPlaying(Boolean(ev.payload));
   });
 
+  // Drag files anywhere -> the cat pulls a trash can from behind its back; drop on it -> recycle bin.
+  let watcherDragActive = false;
+  let webviewDragInside = false;
+  const fallbackTrashSide = (): 'left' | 'right' =>
+    window.screenX + window.innerWidth / 2 < window.screen.width / 2 ? 'right' : 'left';
+
+  await listen<FileDragInfo>('kuro-file-drag', (ev) => {
+    const p = ev.payload;
+    watcherDragActive = Boolean(p.active);
+    if (settings.trashHelper === false) return;
+    if (p.active) {
+      engine.setFileDrag(true, p.count, p.side === 'right' ? 'right' : 'left');
+    } else if (!webviewDragInside) {
+      engine.setFileDrag(false);
+    }
+  });
+
+  try {
+    await getCurrentWebview().onDragDropEvent(async (event) => {
+      if (settings.trashHelper === false) return;
+      const payload = event.payload;
+      if (payload.type === 'enter') {
+        webviewDragInside = true;
+        void invoke('set_file_drop_active', { active: true });
+        engine.setFileDrag(true, payload.paths.length, watcherDragActive ? undefined : fallbackTrashSide());
+        engine.setFileDragCount(payload.paths.length);
+      } else if (payload.type === 'leave') {
+        webviewDragInside = false;
+        void invoke('set_file_drop_active', { active: false });
+        if (!watcherDragActive) engine.setFileDrag(false);
+      } else if (payload.type === 'drop') {
+        webviewDragInside = false;
+        void invoke('set_file_drop_active', { active: false });
+        const dpr = Math.max(window.devicePixelRatio || 1, 1);
+        const pt = engine.clientToLogical(payload.position.x / dpr, payload.position.y / dpr);
+        const overCan = engine.isPointOverTrash(pt.x, pt.y) || engine.isCursorOverTrash();
+        if (overCan && payload.paths.length > 0) {
+          try {
+            const moved = await invoke<number>('trash_files', { paths: payload.paths });
+            if (moved > 0) {
+              engine.onTrashSwallowed(moved);
+            }
+          } catch (err) {
+            console.error('Failed to move files to recycle bin:', err);
+            showUpdateToast(`⚠ ${typeof err === 'string' ? err : '无法移到回收站'}`, { autoHideMs: 3200 });
+          }
+        }
+        engine.setFileDrag(false);
+      }
+    });
+  } catch (err) {
+    console.error('Drag & drop listener unavailable:', err);
+  }
+
   await listen<WindowCursorInfo>('kuro-cursor', (ev) => {
     const c = ev.payload;
     altOverride = Boolean(c.altOverride);
@@ -562,9 +655,15 @@ async function bootstrap(): Promise<void> {
 
   menuEl.addEventListener('click', (e) => {
     const target = (e.target as HTMLElement).closest<HTMLElement>(
-      '[data-action], [data-scale], [data-breed], [data-kblayout], [data-kborient]',
+      '[data-action], [data-scale], [data-breed], [data-kblayout], [data-kborient], [data-desktheme]',
     );
     if (!target) return;
+
+    const deskThemeAttr = target.dataset.desktheme;
+    if (deskThemeAttr) {
+      void applySettingsPatch({ deskTheme: deskThemeAttr });
+      return;
+    }
 
     const kbLayoutAttr = target.dataset.kblayout;
     if (kbLayoutAttr === '65' || kbLayoutAttr === '108') {
@@ -613,6 +712,12 @@ async function bootstrap(): Promise<void> {
         break;
       case 'toggle-autostart':
         void applySettingsPatch({ autostart: !settings.autostart });
+        break;
+      case 'toggle-flying':
+        void applySettingsPatch({ flyingToys: !(settings.flyingToys !== false) });
+        break;
+      case 'toggle-trash':
+        void applySettingsPatch({ trashHelper: !(settings.trashHelper !== false) });
         break;
       case 'toggle-mcp':
         void applySettingsPatch({ mcpEnabled: !settings.mcpEnabled });

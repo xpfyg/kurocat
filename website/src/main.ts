@@ -4,6 +4,7 @@ import type { KeyboardLayoutId } from '../../src/keyboardLayout';
 import { BUILTIN_WEB_CATS } from './builtinCats';
 import { initDownloadStats } from './downloads';
 import { keyboardEventToVk } from './webKeyMap';
+import { DESK_THEMES } from '../../src/deskThemes';
 
 const GITHUB_REPO = 'xpfyg/kurocat';
 const DEFAULT_RELEASE_TAG = 'v4.8.3';
@@ -579,22 +580,23 @@ function initPlayground(): void {
     }
   });
 
+  // Map a client point into normalized cat-logical coordinates (matches the engine's own view transform)
+  const toCatRel = (clientX: number, clientY: number) => {
+    const rect = canvas.getBoundingClientRect();
+    const { w: lw, h: lh } = engine.getLogicalSize();
+    const l = engine.clientToLogical(clientX - rect.left, clientY - rect.top);
+    return { relX: l.x / lw, relY: l.y / lh, lx: l.x, ly: l.y };
+  };
+
   // Real mouse move / petting / eye-tracking / L/R/M clicks on stage
   viewport.addEventListener('pointermove', (e) => {
     const rect = viewport.getBoundingClientRect();
     const nx = Math.max(0, Math.min(1, (e.clientX - rect.left) / Math.max(1, rect.width)));
     const ny = Math.max(0, Math.min(1, (e.clientY - rect.top) / Math.max(1, rect.height)));
     engine.onGlobalMouseMove(nx, ny);
+    engine.setCursorPresent(true);
 
-    // Map stage coordinates into cat logical coordinates for accurate head petting
-    const { w: lw, h: lh } = engine.getLogicalSize();
-    const fit = Math.min((rect.width * 0.86) / lw, (rect.height * 0.86) / lh);
-    const drawW = lw * fit;
-    const drawH = lh * fit;
-    const ox = (rect.width - drawW) * 0.5;
-    const oy = (rect.height - drawH) * 0.52;
-    const relX = (e.clientX - rect.left - ox) / Math.max(1, drawW);
-    const relY = (e.clientY - rect.top - oy) / Math.max(1, drawH);
+    const { relX, relY } = toCatRel(e.clientX, e.clientY);
 
     // Cat head/body zone in normalized logical space
     const overHead = relX >= 0.30 && relX <= 0.72 && relY >= 0.14 && relY <= 0.52;
@@ -604,10 +606,108 @@ function initPlayground(): void {
 
   viewport.addEventListener('pointerleave', () => {
     viewport.classList.remove('petting');
+    engine.setCursorPresent(false);
     engine.onWindowCursor(0.5, 0.5, false);
   });
 
+  // While the cursor is a flying critter, hide the real pointer so it truly "becomes" the critter
+  engine.onAfterRender = () => {
+    viewport.classList.toggle('critter-cursor', engine.isCritterActive());
+    viewport.classList.toggle('trash-pointer', engine.isCursorOverTrash());
+  };
+
+  // Keyboard + mouse theme sets
+  const themeHost = document.getElementById('desk-theme-pills');
+  if (themeHost) {
+    DESK_THEMES.forEach((theme) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `chip-btn mood-chip${theme.id === 'classic' ? ' active' : ''}`;
+      btn.dataset.deskTheme = theme.id;
+      btn.title = `${theme.name} 键盘 + 鼠标`;
+      const sw = document.createElement('span');
+      sw.className = 'theme-swatch';
+      sw.style.background = `linear-gradient(135deg, ${theme.keyTop} 0 50%, ${theme.swatch} 50% 100%)`;
+      btn.appendChild(sw);
+      btn.appendChild(document.createTextNode(theme.name));
+      btn.addEventListener('click', () => {
+        engine.setDeskTheme(theme.id);
+        themeHost.querySelectorAll('[data-desk-theme]').forEach((el) => {
+          el.classList.toggle('active', (el as HTMLElement).dataset.deskTheme === theme.id);
+        });
+      });
+      themeHost.appendChild(btn);
+    });
+  }
+
+  // Trash can demo: simulated drag (button) or real files dragged onto the page.
+  // On the web nothing is deleted — the desktop app moves dropped files to the recycle bin.
+  const btnTrashDemo = document.getElementById('btn-trash-demo');
+  let trashDemoOn = false;
+  const setTrashDemo = (on: boolean) => {
+    trashDemoOn = on;
+    engine.setFileDrag(on, on ? 3 : 0, 'right');
+    if (btnTrashDemo) {
+      btnTrashDemo.classList.toggle('active', on);
+      btnTrashDemo.textContent = on ? '🗑️ 点垃圾桶丢入' : '🗑️ 回收';
+    }
+  };
+  if (btnTrashDemo) {
+    btnTrashDemo.addEventListener('click', () => {
+      if (autoDemoRunning) stopAutoDemo();
+      setTrashDemo(!trashDemoOn);
+    });
+  }
+
+  let pageDragDepth = 0;
+  const dragHasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files');
+  window.addEventListener('dragenter', (e) => {
+    if (!dragHasFiles(e)) return;
+    pageDragDepth += 1;
+    const n = e.dataTransfer?.items?.length || 1;
+    if (autoDemoRunning) stopAutoDemo();
+    engine.setFileDrag(true, n, 'right');
+  });
+  window.addEventListener('dragleave', (e) => {
+    if (!dragHasFiles(e)) return;
+    pageDragDepth = Math.max(0, pageDragDepth - 1);
+    if (pageDragDepth === 0 && !trashDemoOn) engine.setFileDrag(false);
+  });
+  window.addEventListener('dragover', (e) => {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    const rect = viewport.getBoundingClientRect();
+    const inside =
+      e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom;
+    if (inside) {
+      const { relX, relY } = toCatRel(e.clientX, e.clientY);
+      engine.onWindowCursor(relX, relY, false);
+    } else {
+      engine.onWindowCursor(0.5, -1.5, false);
+    }
+    if (e.dataTransfer) e.dataTransfer.dropEffect = engine.isCursorOverTrash() ? 'move' : 'none';
+  });
+  window.addEventListener('drop', (e) => {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    pageDragDepth = 0;
+    const { lx, ly } = toCatRel(e.clientX, e.clientY);
+    const n = e.dataTransfer?.files?.length || 1;
+    if (engine.isPointOverTrash(lx, ly)) {
+      engine.onTrashSwallowed(n);
+    }
+    engine.setFileDrag(false);
+  });
+
   viewport.addEventListener('pointerdown', (e) => {
+    if (trashDemoOn) {
+      const { lx, ly } = toCatRel(e.clientX, e.clientY);
+      if (engine.isPointOverTrash(lx, ly)) {
+        engine.onTrashSwallowed(3);
+        setTrashDemo(false);
+        return;
+      }
+    }
     if (autoDemoRunning) stopAutoDemo();
     const btnName = e.button === 2 ? 'right' : e.button === 1 ? 'middle' : 'left';
     engine.onMouseDown(btnName);

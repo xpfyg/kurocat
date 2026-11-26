@@ -69,6 +69,31 @@ pub struct AppSettings {
     pub keyboard_orientation: String,
     #[serde(default = "default_privacy_password_guard")]
     pub privacy_password_guard: bool,
+    #[serde(default = "default_desk_theme")]
+    pub desk_theme: String,
+    #[serde(default = "default_flying_toys")]
+    pub flying_toys: bool,
+    #[serde(default = "default_trash_helper")]
+    pub trash_helper: bool,
+}
+
+pub fn default_desk_theme() -> String {
+    "classic".to_string()
+}
+
+fn default_flying_toys() -> bool {
+    true
+}
+
+fn default_trash_helper() -> bool {
+    true
+}
+
+pub fn normalize_desk_theme(raw: &str) -> String {
+    match raw.trim() {
+        "midnight" | "sakura" | "matcha" | "retro" | "cyber" | "ocean" => raw.trim().to_string(),
+        _ => "classic".to_string(),
+    }
 }
 
 impl Default for AppSettings {
@@ -88,6 +113,9 @@ impl Default for AppSettings {
             keyboard_layout: default_keyboard_layout(),
             keyboard_orientation: default_keyboard_orientation(),
             privacy_password_guard: default_privacy_password_guard(),
+            desk_theme: default_desk_theme(),
+            flying_toys: default_flying_toys(),
+            trash_helper: default_trash_helper(),
         }
     }
 }
@@ -160,8 +188,9 @@ pub fn set_windows_autostart(enabled: bool) -> Result<(), String> {
     }
 
     let subkey = to_wide("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
-    let value_name = to_wide("KuroCat");
+    let value_name = to_wide("MiniCat");
     let legacy_value_name = to_wide("KuroCatPet");
+    let legacy_kuro_name = to_wide("KuroCat");
 
     unsafe {
         let mut hkey: HKEY = std::ptr::null_mut();
@@ -176,8 +205,9 @@ pub fn set_windows_autostart(enabled: bool) -> Result<(), String> {
             return Err(format!("RegOpenKeyExW failed with code {}", status));
         }
 
-        // Clean up legacy autostart key so users upgrading from <=v4.2 never run two copies
+        // Clean up legacy autostart keys so users upgrading from KuroCat never run two copies
         let _ = RegDeleteValueW(hkey, legacy_value_name.as_ptr());
+        let _ = RegDeleteValueW(hkey, legacy_kuro_name.as_ptr());
 
         let result = if enabled {
             let exe = std::env::current_exe()
@@ -271,7 +301,7 @@ pub fn set_windows_autostart(enabled: bool) -> Result<(), String> {
         let entry = format!(
             "[Desktop Entry]\n\
              Type=Application\n\
-             Name=KuroCat\n\
+             Name=MiniCat\n\
              Comment=Minimalist desktop cat typing & mouse companion\n\
              Exec=\"{exe}\"\n\
              Icon=KuroCat\n\
@@ -304,13 +334,13 @@ pub fn create_desktop_shortcut() -> Result<String, String> {
 
     let script = format!(
         "$desktop = [Environment]::GetFolderPath('Desktop'); \
-         $lnk = Join-Path $desktop 'KuroCat.lnk'; \
+         $lnk = Join-Path $desktop 'MiniCat.lnk'; \
          $ws = New-Object -ComObject WScript.Shell; \
          $s = $ws.CreateShortcut($lnk); \
          $s.TargetPath = '{exe}'; \
          $s.WorkingDirectory = '{wd}'; \
          $s.IconLocation = '{exe},0'; \
-         $s.Description = 'KuroCat Desktop Companion'; \
+         $s.Description = 'MiniCat Desktop Companion'; \
          $s.Save(); \
          Write-Output $lnk",
         exe = exe_str,
