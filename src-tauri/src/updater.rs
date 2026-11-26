@@ -5,9 +5,9 @@ use tauri::{AppHandle, Emitter};
 
 // 只依赖 GitHub releases/latest 的 HTTP 重定向，完全不碰 REST API，
 // 这样不会被匿名 API 配额（每 IP 每小时 60 次）限流。
-const REPO_LATEST_PAGE: &str = "https://github.com/xpfyg/kurocat/releases/latest";
-const REPO_LATEST_DOWNLOAD: &str = "https://github.com/xpfyg/kurocat/releases/latest/download";
-const REPO_RELEASES_PAGE: &str = "https://github.com/xpfyg/kurocat/releases";
+const REPO_LATEST_PAGE: &str = "https://github.com/xpfyg/minicat/releases/latest";
+const REPO_LATEST_DOWNLOAD: &str = "https://github.com/xpfyg/minicat/releases/latest/download";
+const REPO_RELEASES_PAGE: &str = "https://github.com/xpfyg/minicat/releases";
 
 pub const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -70,6 +70,26 @@ fn current_unix_secs() -> u64 {
 // 安装类型探测 + 资产命名约定 → 下载 URL
 // ---------------------------------------------------------------------------
 
+fn is_msix_exe_path(exe: &std::path::Path) -> bool {
+    let lower = exe.to_string_lossy().to_ascii_lowercase();
+    if lower.contains("\\windowsapps\\") || lower.contains("/windowsapps/") {
+        return true;
+    }
+    exe.parent()
+        .map(|dir| dir.join("AppxManifest.xml").exists())
+        .unwrap_or(false)
+}
+
+pub fn is_msix_store_package() -> bool {
+    #[cfg(windows)]
+    {
+        if let Ok(exe) = std::env::current_exe() {
+            return is_msix_exe_path(&exe);
+        }
+    }
+    false
+}
+
 fn detect_install_kind() -> &'static str {
     #[cfg(all(windows, feature = "win7"))]
     {
@@ -78,6 +98,9 @@ fn detect_install_kind() -> &'static str {
     #[cfg(all(windows, not(feature = "win7")))]
     {
         if let Ok(exe) = std::env::current_exe() {
+            if is_msix_exe_path(&exe) {
+                return "windows-msix";
+            }
             if let Some(dir) = exe.parent() {
                 if dir.join("uninstall.exe").exists() {
                     return "windows-nsis";
@@ -156,7 +179,7 @@ fn fetch_latest_tag_name() -> Result<String, String> {
          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; \
          try {{ \
            $resp = Invoke-WebRequest -UseBasicParsing -MaximumRedirection 10 \
-             -Uri '{url}' -Headers @{{'User-Agent'='KuroCat/{ver}'}} -TimeoutSec 15; \
+             -Uri '{url}' -Headers @{{'User-Agent'='MiniCat/{ver}'}} -TimeoutSec 15; \
            $uri = $resp.BaseResponse.ResponseUri.AbsoluteUri; \
          }} catch {{ \
            if ($_.Exception.Response) {{ \
@@ -224,7 +247,7 @@ fn fetch_latest_tag_name() -> Result<String, String> {
             "--max-time",
             "20",
             "-H",
-            &format!("User-Agent: KuroCat/{}", CURRENT_VERSION),
+            &format!("User-Agent: MiniCat/{}", CURRENT_VERSION),
             "-o",
             "/dev/null",
             "-w",
@@ -248,7 +271,7 @@ fn fetch_latest_tag_name() -> Result<String, String> {
 }
 
 fn extract_tag_from_release_url(url: &str) -> Result<String, String> {
-    // https://github.com/xpfyg/kurocat/releases/tag/v4.8.3  → v4.8.3
+    // https://github.com/xpfyg/minicat/releases/tag/v4.8.3  → v4.8.3
     let lowered = url.trim().to_ascii_lowercase();
     let candidates = ["/releases/tag/", "/tag/"];
     for needle in &candidates {
@@ -272,6 +295,21 @@ fn extract_tag_from_release_url(url: &str) -> Result<String, String> {
 // ---------------------------------------------------------------------------
 
 pub fn check_latest_update() -> Result<UpdateInfo, String> {
+    if is_msix_store_package() {
+        return Ok(UpdateInfo {
+            current_version: CURRENT_VERSION.to_string(),
+            latest_version: CURRENT_VERSION.to_string(),
+            has_update: false,
+            release_url: REPO_RELEASES_PAGE.to_string(),
+            asset_name: None,
+            download_url: None,
+            asset_sha256: None,
+            asset_size: None,
+            install_kind: "windows-msix".to_string(),
+            notes_summary: "当前为 Microsoft Store 版本，应用更新由 Microsoft Store 自动管理。".to_string(),
+        });
+    }
+
     let latest_tag = fetch_latest_tag_name()?;
     let latest_clean = latest_tag.trim_start_matches(['v', 'V']).to_string();
     let has_update = is_newer_version(&latest_clean, CURRENT_VERSION);
@@ -284,7 +322,7 @@ pub fn check_latest_update() -> Result<UpdateInfo, String> {
         latest_version: latest_clean,
         has_update,
         release_url: format!(
-            "https://github.com/xpfyg/kurocat/releases/tag/{}",
+            "https://github.com/xpfyg/minicat/releases/tag/{}",
             latest_tag
         ),
         asset_name: if asset_name.is_empty() { None } else { Some(asset_name) },
@@ -305,7 +343,7 @@ pub fn check_latest_update() -> Result<UpdateInfo, String> {
 // ---------------------------------------------------------------------------
 
 fn cooldown_marker_path() -> PathBuf {
-    std::env::temp_dir().join("kurocat-last-auto-update-check")
+    std::env::temp_dir().join("minicat-last-auto-update-check")
 }
 
 fn read_last_check_unix() -> Option<u64> {
@@ -330,6 +368,9 @@ fn auto_check_due() -> bool {
 }
 
 pub fn start_background_update_checker(app: AppHandle) {
+    if is_msix_store_package() {
+        return;
+    }
     std::thread::spawn(move || {
         // 启动时静默，先等桌面完全绘制好。
         std::thread::sleep(std::time::Duration::from_secs(8));
@@ -363,7 +404,7 @@ pub fn start_background_update_checker(app: AppHandle) {
 
 fn emit_progress(app: &AppHandle, stage: &str, message: impl Into<String>, info: Option<UpdateInfo>) {
     let _ = app.emit(
-        "kuro-update-status",
+        "mini-update-status",
         UpdateProgressEvent {
             stage: stage.to_string(),
             message: message.into(),
@@ -411,7 +452,7 @@ fn download_and_verify_windows(url: &str, dest: &PathBuf, expected_sha256: Optio
          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; \
          $ProgressPreference = 'SilentlyContinue'; \
          $dst = '{dst}'; \
-         Invoke-WebRequest -UseBasicParsing -Uri '{url}' -Headers @{{'User-Agent'='KuroCat/{ver}'}} -OutFile $dst -TimeoutSec 180; \
+         Invoke-WebRequest -UseBasicParsing -Uri '{url}' -Headers @{{'User-Agent'='MiniCat/{ver}'}} -OutFile $dst -TimeoutSec 180; \
          if (-not (Test-Path $dst) -or (Get-Item $dst).Length -lt 500000) {{ throw '下载文件不完整' }}; \
          $exp = '{sha}'; \
          if ($exp -ne '') {{ \
@@ -480,7 +521,7 @@ fn install_windows_update(app: &AppHandle, info: &UpdateInfo) -> Result<(), Stri
     let asset_name = info
         .asset_name
         .as_deref()
-        .unwrap_or("KuroCat-update.exe");
+        .unwrap_or("MiniCat-update.exe");
 
     emit_progress(
         app,
@@ -489,7 +530,7 @@ fn install_windows_update(app: &AppHandle, info: &UpdateInfo) -> Result<(), Stri
         Some(info.clone()),
     );
 
-    let temp_dir = std::env::temp_dir().join("kurocat-updates");
+    let temp_dir = std::env::temp_dir().join("minicat-updates");
     let _ = std::fs::create_dir_all(&temp_dir);
     let safe_name = asset_name.replace(['\\', '/', ':', '*', '?', '"', '<', '>', '|'], "_");
     let target_file = temp_dir.join(safe_name);
@@ -593,10 +634,10 @@ fn install_macos_update(app: &AppHandle, info: &UpdateInfo) -> Result<(), String
         Some(info.clone()),
     );
 
-    let temp_dir = std::env::temp_dir().join(format!("kurocat-update-{}", info.latest_version));
+    let temp_dir = std::env::temp_dir().join(format!("minicat-update-{}", info.latest_version));
     let _ = std::fs::remove_dir_all(&temp_dir);
     std::fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
-    let archive_path = temp_dir.join("KuroCat-update.app.tar.gz");
+    let archive_path = temp_dir.join("MiniCat-update.app.tar.gz");
 
     let dl = Command::new("/usr/bin/curl")
         .args([
@@ -606,9 +647,9 @@ fn install_macos_update(app: &AppHandle, info: &UpdateInfo) -> Result<(), String
             "--max-time",
             "240",
             "-H",
-            &format!("User-Agent: KuroCat/{}", CURRENT_VERSION),
+            &format!("User-Agent: MiniCat/{}", CURRENT_VERSION),
             "-o",
-            archive_path.to_str().unwrap_or("/tmp/KuroCat-update.app.tar.gz"),
+            archive_path.to_str().unwrap_or("/tmp/MiniCat-update.app.tar.gz"),
             url,
         ])
         .output()
@@ -716,6 +757,16 @@ fn install_macos_update(app: &AppHandle, info: &UpdateInfo) -> Result<(), String
 }
 
 pub fn perform_update_install(app: &AppHandle, info: UpdateInfo) -> Result<(), String> {
+    if is_msix_store_package() || info.install_kind == "windows-msix" {
+        emit_progress(
+            app,
+            "up_to_date",
+            "当前为 Microsoft Store 版本，请通过 Microsoft Store 获取更新",
+            Some(info),
+        );
+        return Ok(());
+    }
+
     if !info.has_update {
         emit_progress(
             app,
@@ -770,10 +821,10 @@ mod tests {
     #[test]
     fn extract_tag_from_github_release_urls() {
         let ok_cases = [
-            ("https://github.com/xpfyg/kurocat/releases/tag/v4.8.3", "v4.8.3"),
-            ("https://github.com/xpfyg/kurocat/releases/tag/V4.8.3#assets", "V4.8.3"),
-            ("https://github.com/xpfyg/kurocat/releases/tag/4.8.3", "4.8.3"),
-            ("https://github.com/xpfyg/kurocat/tag/v4.0.0-rc1", "v4.0.0-rc1"),
+            ("https://github.com/xpfyg/minicat/releases/tag/v4.8.3", "v4.8.3"),
+            ("https://github.com/xpfyg/minicat/releases/tag/V4.8.3#assets", "V4.8.3"),
+            ("https://github.com/xpfyg/minicat/releases/tag/4.8.3", "4.8.3"),
+            ("https://github.com/xpfyg/minicat/tag/v4.0.0-rc1", "v4.0.0-rc1"),
         ];
         for (url, expected) in ok_cases {
             assert_eq!(
@@ -784,7 +835,7 @@ mod tests {
             );
         }
         let bad = [
-            "https://github.com/xpfyg/kurocat/releases/latest",
+            "https://github.com/xpfyg/minicat/releases/latest",
             "https://example.com/",
             "",
         ];
@@ -807,5 +858,12 @@ mod tests {
 
         let none = pick_asset_by_convention("v5.0.0", "unknown-kind");
         assert!(none.is_none());
+
+        assert!(is_msix_exe_path(std::path::Path::new(
+            r"C:\Program Files\WindowsApps\9FBD0BA0.minicat_5.0.0.0_x64__abc\MiniCat.exe"
+        )));
+        assert!(!is_msix_exe_path(std::path::Path::new(
+            r"C:\Users\alice\AppData\Local\MiniCat\MiniCat.exe"
+        )));
     }
 }
