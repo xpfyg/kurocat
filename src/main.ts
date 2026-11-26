@@ -27,7 +27,6 @@ interface AppSettings {
   deskTheme: string;
   flyingToys: boolean;
   trashHelper: boolean;
-  hideCursorForCritter: boolean;
 }
 
 interface FileDragInfo {
@@ -100,7 +99,6 @@ let settings: AppSettings = {
   deskTheme: 'classic',
   flyingToys: true,
   trashHelper: true,
-  hideCursorForCritter: true,
 };
 
 let catList: CatSkinConfig[] = [...DEFAULT_BUILTIN_CATS];
@@ -178,7 +176,6 @@ function syncMenuUI(): void {
   setCheck('chk-mcp', settings.mcpEnabled);
   setCheck('chk-flying', settings.flyingToys !== false);
   setCheck('chk-trash', settings.trashHelper !== false);
-  setCheck('chk-hide-cursor', settings.hideCursorForCritter !== false);
 
   if (!sliderDragging) {
     updateScaleSliderVisual(settings.scale);
@@ -571,7 +568,6 @@ async function bootstrap(): Promise<void> {
   let lastCursorKeepalive = 0;
   window.setInterval(() => {
     const want =
-      settings.hideCursorForCritter !== false &&
       settings.flyingToys !== false &&
       menuEl.classList.contains('hidden') &&
       engine.isCritterActive();
@@ -736,9 +732,6 @@ async function bootstrap(): Promise<void> {
         break;
       case 'toggle-flying':
         void applySettingsPatch({ flyingToys: !(settings.flyingToys !== false) });
-        break;
-      case 'toggle-hide-cursor':
-        void applySettingsPatch({ hideCursorForCritter: !(settings.hideCursorForCritter !== false) });
         break;
       case 'toggle-trash':
         void applySettingsPatch({ trashHelper: !(settings.trashHelper !== false) });

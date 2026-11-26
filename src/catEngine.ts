@@ -194,6 +194,7 @@ export class KuroCatEngine {
   private trashCount = 1;
   private trashAmount = 0;
   private trashReach = 0;
+  private trashAimY = 0;
   private trashScale = 1;
   private trashLid = 0;
   private trashHover = false;
@@ -257,9 +258,8 @@ export class KuroCatEngine {
    */
   public setFileDrag(active: boolean, count = 0, side?: 'left' | 'right'): void {
     if (active) {
-      if (side && this.trashAmount < 0.05) {
-        this.trashSide = side === 'right' ? 1 : -1;
-      }
+      // Hand-off side follows the cursor (left / right of the cat) — see updateTrash().
+      void side;
       this.trashWanted = true;
       if (count > 0) this.trashCount = count;
     } else if (this.trashWanted) {
@@ -1624,7 +1624,7 @@ export class KuroCatEngine {
     const maxDX = this.keyboardLayout === '108' ? 176 : 158;
     const margin = w * 0.5 + 10;
     const finalX = Math.max(margin, Math.min(this.logicalW - margin, cx + side * (minDX + (maxDX - minDX) * reach)));
-    const finalY = this.catTopY + 146 - reach * 22 - (s - 1) * 10;
+    const finalY = this.trashAimY || this.catTopY + 140;
     const peekX = cx + side * 50;
     const peekY = this.catTopY + 46;
     const hideX = cx + side * 12;
@@ -1664,22 +1664,42 @@ export class KuroCatEngine {
     const gulping = this.trashGulpT >= 0;
     const want =
       !this.privacyMode && (this.trashWanted || gulping || now < this.trashHoldUntil);
-    this.trashAmount = want
-      ? Math.min(1, this.trashAmount + dt / 0.55)
-      : Math.max(0, this.trashAmount - dt / 0.42);
+
+    // Like the eyes following the cursor: the can is offered on the cursor's side of the cat
+    // (left or right only), and slides toward the cursor within the paw's comfortable reach.
+    const cx = this.cursorRelX * this.logicalW;
+    const cy = this.cursorRelY * this.logicalH;
+    const catX = this.catCenterX;
+    const desiredSide: 1 | -1 =
+      cx < catX - 22 ? -1 : cx > catX + 22 ? 1 : this.trashSide;
+    const switching = desiredSide !== this.trashSide && !gulping;
+    if (switching && this.trashAmount <= 0.5) {
+      // Can is tucked behind the head: swap paws and bring it out on the other side
+      this.trashSide = desiredSide;
+    }
+
+    if (switching && this.trashAmount > 0.5) {
+      this.trashAmount = Math.max(0.5, this.trashAmount - dt / 0.16);
+    } else {
+      this.trashAmount = want
+        ? Math.min(1, this.trashAmount + dt / (this.trashAmount > 0.45 ? 0.32 : 0.5))
+        : Math.max(0, this.trashAmount - dt / 0.42);
+    }
 
     // More files -> a (slightly) bigger can, capped so it never gets silly.
     const targetScale = 1 + Math.min(0.42, Math.log2(Math.max(1, this.trashCount)) * 0.12);
     this.trashScale += (targetScale - this.trashScale) * (1 - Math.exp(-6 * dt));
 
-    // The closer the cursor gets to the cat, the further the cat stretches the can toward it.
-    const cx = this.cursorRelX * this.logicalW;
-    const cy = this.cursorRelY * this.logicalH;
-    const center = this.spinePoint(0.5, 0);
-    const d = Math.hypot(cx - center.x, cy - center.y);
     if (!gulping) {
-      const reachTarget = Math.max(0, Math.min(1, (400 - d) / (400 - 110)));
-      this.trashReach += (reachTarget - this.trashReach) * (1 - Math.exp(-5 * dt));
+      const minDX = 86;
+      const maxDX = this.keyboardLayout === '108' ? 176 : 158;
+      const dx = (cx - catX) * this.trashSide;
+      const reachTarget = Math.max(0, Math.min(1, (dx - minDX) / (maxDX - minDX)));
+      const aimTarget = Math.max(this.catTopY + 82, Math.min(this.catTopY + 165, cy));
+      if (!this.trashAimY) this.trashAimY = aimTarget;
+      const k = 1 - Math.exp(-7 * dt);
+      this.trashReach += (reachTarget - this.trashReach) * k;
+      this.trashAimY += (aimTarget - this.trashAimY) * k;
     }
 
     this.trashHover = this.trashWanted && this.isPointOverTrash(cx, cy);
@@ -1730,6 +1750,7 @@ export class KuroCatEngine {
     if (this.trashAmount <= 0 && !want) {
       this.trashCount = 1;
       this.trashReach = 0;
+      this.trashAimY = 0;
     }
   }
 
