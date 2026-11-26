@@ -6,6 +6,9 @@ src-tauri/target-win7/
 *.exe
 *.msi
 *.log
+# 商店提审用的静态安装包需要入库，保证重新部署时不丢
+!website/public/downloads/*.exe
+!website/public/downloads/*.msi
 .DS_Store
 Thumbs.db
 __pycache__/

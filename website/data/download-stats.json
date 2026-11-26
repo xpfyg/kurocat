@@ -1,40 +1,49 @@
 {
-  "updated_at": "2026-11-25T03:46:34Z",
-  "total": 596,
-  "win": 447,
-  "mac": 76,
-  "linux": 73,
+  "updated_at": "2026-11-26T07:45:09Z",
+  "total": 949,
+  "win": 701,
+  "mac": 98,
+  "linux": 150,
   "releases": [
     {
       "tag": "v4.7.0",
       "date": "2026-11-24",
-      "downloads": 38
+      "downloads": 44
     },
     {
       "tag": "v4.8.0",
       "date": "2026-11-24",
-      "downloads": 65
+      "downloads": 73
     },
     {
       "tag": "v4.8.1",
       "date": "2026-11-24",
-      "downloads": 341
+      "downloads": 372
     },
     {
       "tag": "v4.8.2",
       "date": "2026-11-25",
-      "downloads": 58
+      "downloads": 88
     },
     {
       "tag": "v4.8.3",
       "date": "2026-11-25",
-      "downloads": 94
+      "downloads": 207
+    },
+    {
+      "tag": "v5.0.0",
+      "date": "2026-11-26",
+      "downloads": 165
     }
   ],
   "history": [
     {
       "date": "2026-11-25",
       "total": 596
+    },
+    {
+      "date": "2026-11-26",
+      "total": 949
     }
   ]
 }

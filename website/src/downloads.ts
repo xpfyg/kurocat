@@ -1,6 +1,6 @@
 const STATS_URL =
-  'https://raw.githubusercontent.com/xpfyg/kurocat/main/website/data/download-stats.json';
-const CACHE_KEY = 'kurocat.download-stats.v2';
+  'https://raw.githubusercontent.com/xpfyg/minicat/main/website/data/download-stats.json';
+const CACHE_KEY = 'minicat.download-stats.v2';
 const CACHE_TTL = 30 * 60 * 1000;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 

@@ -1,5 +1,5 @@
 /* ============================================================
-   KuroCat — editorial print / warm paper edition
+   MiniCat — editorial print / warm paper edition
    ============================================================ */
 
 :root {
@@ -630,7 +630,7 @@ main {
     radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.9) 0%, rgba(241, 233, 219, 0.96) 66%, #ddd0b8 100%);
 }
 
-#kurocat-canvas {
+#minicat-canvas {
   width: 100%;
   height: 100%;
   display: block;
@@ -665,6 +665,81 @@ main {
   color: var(--ink);
   background: rgba(250, 244, 231, 0.9);
   border-color: rgba(23, 19, 15, 0.18);
+}
+
+.trash-toss {
+  position: absolute;
+  left: 13px;
+  bottom: 12px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border: 1.5px dashed rgba(241, 233, 219, 0.55);
+  border-radius: 3px;
+  background: rgba(17, 13, 10, 0.82);
+  color: rgba(241, 233, 219, 0.92);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  cursor: grab;
+  touch-action: none;
+  transition: border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.backdrop-light .trash-toss {
+  border-color: rgba(23, 19, 15, 0.4);
+  background: rgba(250, 244, 231, 0.92);
+  color: var(--ink-2);
+}
+
+.trash-toss:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.backdrop-light .trash-toss:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.trash-toss-paper {
+  flex-shrink: 0;
+  animation: trash-toss-bob 2.2s ease-in-out infinite;
+  transform-origin: 50% 55%;
+}
+
+.trash-toss-hint {
+  white-space: nowrap;
+}
+
+.trash-toss.is-dragging {
+  cursor: grabbing;
+  z-index: 6;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38);
+}
+
+.trash-toss.is-over {
+  border-style: solid;
+  border-color: #7ddc8a;
+  color: #7ddc8a;
+}
+
+.trash-toss.is-done {
+  border-style: solid;
+  border-color: #7ddc8a;
+  color: #7ddc8a;
+}
+
+@keyframes trash-toss-bob {
+  0%,
+  100% {
+    transform: translateX(0) rotate(-4deg);
+  }
+  50% {
+    transform: translateX(4px) rotate(6deg);
+  }
 }
 
 .stage-status-pill {

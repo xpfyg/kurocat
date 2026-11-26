@@ -1,4 +1,4 @@
-import { KuroCatEngine, type CatMood, type KeyboardOrientation } from '../../src/catEngine';
+import { MiniCatEngine, type CatMood, type KeyboardOrientation } from '../../src/catEngine';
 import { catAudio } from '../../src/audio';
 import type { KeyboardLayoutId } from '../../src/keyboardLayout';
 import { BUILTIN_WEB_CATS } from './builtinCats';
@@ -6,7 +6,7 @@ import { initDownloadStats } from './downloads';
 import { keyboardEventToVk } from './webKeyMap';
 import { DESK_THEMES } from '../../src/deskThemes';
 
-const GITHUB_REPO = 'xpfyg/kurocat';
+const GITHUB_REPO = 'xpfyg/minicat';
 const DEFAULT_RELEASE_TAG = 'v4.8.3';
 
 interface ReleaseAsset {
@@ -110,11 +110,11 @@ async function syncGithubMetadata(): Promise<void> {
 }
 
 function initPlayground(): void {
-  const canvas = document.getElementById('kurocat-canvas') as HTMLCanvasElement | null;
+  const canvas = document.getElementById('minicat-canvas') as HTMLCanvasElement | null;
   const viewport = document.getElementById('canvas-viewport') as HTMLDivElement | null;
   if (!canvas || !viewport) return;
 
-  const engine = new KuroCatEngine(canvas, { embedded: true });
+  const engine = new MiniCatEngine(canvas, { embedded: true });
   let currentLayout: KeyboardLayoutId = '65';
   let currentOrient: KeyboardOrientation = 'cat';
   let currentSkinId = 'black';
@@ -659,6 +659,73 @@ function initPlayground(): void {
     });
   }
 
+  // Draggable trash icon overlay: drag it into the stage to trigger the trash-toss action
+  const trashToss = document.getElementById('trash-toss') as HTMLButtonElement | null;
+  if (trashToss) {
+    const trashTossHint = document.getElementById('trash-toss-hint');
+    let tossing = false;
+    let startLeft = 0;
+    let startTop = 0;
+    let grabX = 0;
+    let grabY = 0;
+
+    const resetToss = () => {
+      trashToss.style.transform = '';
+      trashToss.classList.remove('is-dragging', 'is-over');
+    };
+
+    trashToss.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (autoDemoRunning) stopAutoDemo();
+      tossing = true;
+      const rect = trashToss.getBoundingClientRect();
+      startLeft = rect.left;
+      startTop = rect.top;
+      grabX = e.clientX - rect.left;
+      grabY = e.clientY - rect.top;
+      trashToss.setPointerCapture(e.pointerId);
+      trashToss.classList.add('is-dragging');
+      engine.setFileDrag(true, 3);
+      const { relX, relY } = toCatRel(e.clientX, e.clientY);
+      engine.onWindowCursor(relX, relY, false);
+    });
+
+    trashToss.addEventListener('pointermove', (e) => {
+      if (!tossing) return;
+      const vr = viewport.getBoundingClientRect();
+      const w = trashToss.offsetWidth;
+      const h = trashToss.offsetHeight;
+      const x = Math.max(vr.left + 4, Math.min(vr.right - w - 4, e.clientX - grabX));
+      const y = Math.max(vr.top + 4, Math.min(vr.bottom - h - 4, e.clientY - grabY));
+      trashToss.style.transform = `translate(${x - startLeft}px, ${y - startTop}px)`;
+      const { relX, relY } = toCatRel(e.clientX, e.clientY);
+      engine.onWindowCursor(relX, relY, false);
+      trashToss.classList.toggle('is-over', engine.isCursorOverTrash());
+    });
+
+    const endToss = (e: PointerEvent, cancelled: boolean) => {
+      if (!tossing) return;
+      tossing = false;
+      const vr = viewport.getBoundingClientRect();
+      const inside =
+        e.clientX >= vr.left && e.clientX <= vr.right && e.clientY >= vr.top && e.clientY <= vr.bottom;
+      if (!cancelled && inside) {
+        engine.onTrashSwallowed(3);
+        trashToss.classList.add('is-done');
+        if (trashTossHint) trashTossHint.textContent = '♻️ 已回收';
+        window.setTimeout(() => {
+          trashToss.classList.remove('is-done');
+          if (trashTossHint) trashTossHint.textContent = '拖纸团进垃圾桶 → 回收站';
+        }, 1400);
+      }
+      if (!trashDemoOn) engine.setFileDrag(false);
+      resetToss();
+    };
+
+    trashToss.addEventListener('pointerup', (e) => endToss(e, false));
+    trashToss.addEventListener('pointercancel', (e) => endToss(e, true));
+  }
+
   let pageDragDepth = 0;
   const dragHasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files');
   window.addEventListener('dragenter', (e) => {
@@ -733,16 +800,16 @@ function initPlayground(): void {
 function initMcpCodeTabs(): void {
   const snippets: Record<string, { raw: string; html: string }> = {
     win: {
-      raw: `{\n  "mcpServers": {\n    "kurocat": {\n      "command": "C:\\\\Users\\\\<你的用户名>\\\\AppData\\\\Local\\\\KuroCat\\\\KuroCat.exe",\n      "args": ["--mcp"]\n    }\n  }\n}`,
-      html: `<span class="c-dim">// Windows Stdio 模式（Claude / Cursor / Antigravity 通用）</span>\n{\n  <span class="c-key">"mcpServers"</span>: {\n    <span class="c-key">"kurocat"</span>: {\n      <span class="c-key">"command"</span>: <span class="c-str">"C:\\\\Users\\\\&lt;你的用户名&gt;\\\\AppData\\\\Local\\\\KuroCat\\\\KuroCat.exe"</span>,\n      <span class="c-key">"args"</span>: [<span class="c-str">"--mcp"</span>]\n    }\n  }\n}`,
+      raw: `{\n  "mcpServers": {\n    "minicat": {\n      "command": "C:\\\\Users\\\\<你的用户名>\\\\AppData\\\\Local\\\\MiniCat\\\\MiniCat.exe",\n      "args": ["--mcp"]\n    }\n  }\n}`,
+      html: `<span class="c-dim">// Windows Stdio 模式（Claude / Cursor / Antigravity 通用）</span>\n{\n  <span class="c-key">"mcpServers"</span>: {\n    <span class="c-key">"minicat"</span>: {\n      <span class="c-key">"command"</span>: <span class="c-str">"C:\\\\Users\\\\&lt;你的用户名&gt;\\\\AppData\\\\Local\\\\MiniCat\\\\MiniCat.exe"</span>,\n      <span class="c-key">"args"</span>: [<span class="c-str">"--mcp"</span>]\n    }\n  }\n}`,
     },
     mac: {
-      raw: `{\n  "mcpServers": {\n    "kurocat": {\n      "command": "/Applications/KuroCat.app/Contents/MacOS/KuroCat",\n      "args": ["--mcp"]\n    }\n  }\n}`,
-      html: `<span class="c-dim">// macOS Stdio 模式（零依赖直连 App 内置二进制）</span>\n{\n  <span class="c-key">"mcpServers"</span>: {\n    <span class="c-key">"kurocat"</span>: {\n      <span class="c-key">"command"</span>: <span class="c-str">"/Applications/KuroCat.app/Contents/MacOS/KuroCat"</span>,\n      <span class="c-key">"args"</span>: [<span class="c-str">"--mcp"</span>]\n    }\n  }\n}`,
+      raw: `{\n  "mcpServers": {\n    "minicat": {\n      "command": "/Applications/MiniCat.app/Contents/MacOS/MiniCat",\n      "args": ["--mcp"]\n    }\n  }\n}`,
+      html: `<span class="c-dim">// macOS Stdio 模式（零依赖直连 App 内置二进制）</span>\n{\n  <span class="c-key">"mcpServers"</span>: {\n    <span class="c-key">"minicat"</span>: {\n      <span class="c-key">"command"</span>: <span class="c-str">"/Applications/MiniCat.app/Contents/MacOS/MiniCat"</span>,\n      <span class="c-key">"args"</span>: [<span class="c-str">"--mcp"</span>]\n    }\n  }\n}`,
     },
     http: {
-      raw: `{\n  "mcpServers": {\n    "kurocat": {\n      "url": "http://127.0.0.1:27420/mcp"\n    }\n  }\n}`,
-      html: `<span class="c-dim">// 本机 Streamable HTTP 模式（桌宠运行时直接连接）</span>\n{\n  <span class="c-key">"mcpServers"</span>: {\n    <span class="c-key">"kurocat"</span>: {\n      <span class="c-key">"url"</span>: <span class="c-str">"http://127.0.0.1:27420/mcp"</span>\n    }\n  }\n}`,
+      raw: `{\n  "mcpServers": {\n    "minicat": {\n      "url": "http://127.0.0.1:27420/mcp"\n    }\n  }\n}`,
+      html: `<span class="c-dim">// 本机 Streamable HTTP 模式（桌宠运行时直接连接）</span>\n{\n  <span class="c-key">"mcpServers"</span>: {\n    <span class="c-key">"minicat"</span>: {\n      <span class="c-key">"url"</span>: <span class="c-str">"http://127.0.0.1:27420/mcp"</span>\n    }\n  }\n}`,
     },
   };
 
@@ -780,7 +847,7 @@ function initMcpCodeTabs(): void {
   const xattrBtn = document.getElementById('copy-xattr-btn');
   if (xattrBtn) {
     xattrBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText('xattr -cr /Applications/KuroCat.app').then(() => {
+      navigator.clipboard.writeText('xattr -cr /Applications/MiniCat.app').then(() => {
         xattrBtn.textContent = '已复制 ✓';
         window.setTimeout(() => {
           xattrBtn.textContent = '复制命令';
