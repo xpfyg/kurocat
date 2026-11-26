@@ -2,6 +2,7 @@
 
 mod cats;
 mod config;
+mod cursor_hide;
 mod file_drag;
 mod input_hook;
 mod mcp;
@@ -1707,6 +1708,7 @@ pub fn run() {
                 settings_for_setup.clone(),
                 paused_for_setup.clone(),
             );
+            cursor_hide::init(handle.clone());
             file_drag::start_file_drag_watcher(
                 handle.clone(),
                 file_drag_for_setup.clone(),
@@ -1774,6 +1776,7 @@ pub fn run() {
             set_update_banner_open,
             set_file_drop_active,
             file_drag::trash_files,
+            cursor_hide::set_cursor_hidden,
             is_win7_ulw_mode,
             win7_present_frame,
             win7_sync_overlay,
@@ -1785,8 +1788,13 @@ pub fn run() {
             open_release_page,
             quit_app,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running KuroCat");
+        .build(tauri::generate_context!())
+        .expect("error while running KuroCat")
+        .run(|_app, event| {
+            if let tauri::RunEvent::Exit = event {
+                cursor_hide::restore_now();
+            }
+        });
 }
 
 #[cfg(all(test, windows))]

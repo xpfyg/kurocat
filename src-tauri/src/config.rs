@@ -75,6 +75,12 @@ pub struct AppSettings {
     pub flying_toys: bool,
     #[serde(default = "default_trash_helper")]
     pub trash_helper: bool,
+    #[serde(default = "default_hide_cursor_for_critter")]
+    pub hide_cursor_for_critter: bool,
+}
+
+fn default_hide_cursor_for_critter() -> bool {
+    true
 }
 
 pub fn default_desk_theme() -> String {
@@ -116,6 +122,7 @@ impl Default for AppSettings {
             desk_theme: default_desk_theme(),
             flying_toys: default_flying_toys(),
             trash_helper: default_trash_helper(),
+            hide_cursor_for_critter: default_hide_cursor_for_critter(),
         }
     }
 }

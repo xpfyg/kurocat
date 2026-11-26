@@ -27,6 +27,7 @@ interface AppSettings {
   deskTheme: string;
   flyingToys: boolean;
   trashHelper: boolean;
+  hideCursorForCritter: boolean;
 }
 
 interface FileDragInfo {
@@ -99,6 +100,7 @@ let settings: AppSettings = {
   deskTheme: 'classic',
   flyingToys: true,
   trashHelper: true,
+  hideCursorForCritter: true,
 };
 
 let catList: CatSkinConfig[] = [...DEFAULT_BUILTIN_CATS];
@@ -176,6 +178,7 @@ function syncMenuUI(): void {
   setCheck('chk-mcp', settings.mcpEnabled);
   setCheck('chk-flying', settings.flyingToys !== false);
   setCheck('chk-trash', settings.trashHelper !== false);
+  setCheck('chk-hide-cursor', settings.hideCursorForCritter !== false);
 
   if (!sliderDragging) {
     updateScaleSliderVisual(settings.scale);
@@ -562,6 +565,24 @@ async function bootstrap(): Promise<void> {
     engine.setMusicPlaying(Boolean(ev.payload));
   });
 
+  // While the cursor is "transformed" into a flying critter, hide the real system pointer.
+  // Rust restores it automatically if these keepalives stop (watchdog) or the app exits.
+  let cursorHidden = false;
+  let lastCursorKeepalive = 0;
+  window.setInterval(() => {
+    const want =
+      settings.hideCursorForCritter !== false &&
+      settings.flyingToys !== false &&
+      menuEl.classList.contains('hidden') &&
+      engine.isCritterActive();
+    const now = performance.now();
+    if (want !== cursorHidden || (want && now - lastCursorKeepalive > 500)) {
+      cursorHidden = want;
+      lastCursorKeepalive = now;
+      void invoke('set_cursor_hidden', { hidden: want });
+    }
+  }, 100);
+
   // Drag files anywhere -> the cat pulls a trash can from behind its back; drop on it -> recycle bin.
   let watcherDragActive = false;
   let webviewDragInside = false;
@@ -715,6 +736,9 @@ async function bootstrap(): Promise<void> {
         break;
       case 'toggle-flying':
         void applySettingsPatch({ flyingToys: !(settings.flyingToys !== false) });
+        break;
+      case 'toggle-hide-cursor':
+        void applySettingsPatch({ hideCursorForCritter: !(settings.hideCursorForCritter !== false) });
         break;
       case 'toggle-trash':
         void applySettingsPatch({ trashHelper: !(settings.trashHelper !== false) });
