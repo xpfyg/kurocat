@@ -94,7 +94,7 @@ pub fn set_password_privacy_active(active: bool) {
 #[cfg(windows)]
 static WIN_HOOK_TID: AtomicU32 = AtomicU32::new(0);
 #[cfg(windows)]
-const WM_KURO_PAUSE_TOGGLE: u32 = 0x8007; // WM_APP + 7
+const WM_MINI_PAUSE_TOGGLE: u32 = 0x8007; // WM_APP + 7
 
 fn is_alt_vk(vk: u32) -> bool {
     matches!(vk, 0x12 | 0xA4 | 0xA5)
@@ -130,7 +130,7 @@ pub fn set_hooks_paused(paused: bool) {
             unsafe {
                 windows_sys::Win32::UI::WindowsAndMessaging::PostThreadMessageW(
                     tid,
-                    WM_KURO_PAUSE_TOGGLE,
+                    WM_MINI_PAUSE_TOGGLE,
                     paused as usize,
                     0,
                 );
@@ -197,7 +197,7 @@ impl KeyDeduplicator {
 }
 
 /// Maps USB HID Usage ID (Usage Page 0x07: Keyboard/Keypad) to Windows VK codes
-/// used by the KuroCat frontend keyboard layout.
+/// used by the MiniCat frontend keyboard layout.
 #[allow(dead_code)]
 pub fn hid_usage_to_vk(usage: u32) -> Option<u32> {
     let vk = match usage {
@@ -263,7 +263,7 @@ pub fn hid_usage_to_vk(usage: u32) -> Option<u32> {
 }
 
 /// Maps Linux evdev keycodes (`<linux/input-event-codes.h>`, also X11 evdev keycode - 8)
-/// to Windows VK codes used by the KuroCat frontend keyboard layout.
+/// to Windows VK codes used by the MiniCat frontend keyboard layout.
 #[allow(dead_code)]
 pub fn linux_evdev_to_vk(code: u16) -> Option<u32> {
     let vk = match code {
@@ -383,7 +383,7 @@ pub fn start_global_hooks(app: AppHandle) {
                         // Zero password keystrokes leave Rust — only emit a content-less privacy pulse!
                         if let Some(repeat) = dedup.on_key_down(vk, source, Instant::now()) {
                             if !repeat {
-                                let _ = app.emit("kuro-input", InputEvent::PrivacyTyping);
+                                let _ = app.emit("mini-input", InputEvent::PrivacyTyping);
                             }
                         }
                         continue;
@@ -392,7 +392,7 @@ pub fn start_global_hooks(app: AppHandle) {
                         if !repeat {
                             KEY_EVENTS_RECEIVED.fetch_add(1, Ordering::Relaxed);
                         }
-                        let _ = app.emit("kuro-input", InputEvent::KeyDown { vk, scan, repeat });
+                        let _ = app.emit("mini-input", InputEvent::KeyDown { vk, scan, repeat });
                     }
                 }
                 RawHookMsg::KeyUp { vk, scan, source } => {
@@ -404,13 +404,13 @@ pub fn start_global_hooks(app: AppHandle) {
                         continue;
                     }
                     if dedup.on_key_up(vk, source) {
-                        let _ = app.emit("kuro-input", InputEvent::KeyUp { vk, scan });
+                        let _ = app.emit("mini-input", InputEvent::KeyUp { vk, scan });
                     }
                 }
                 RawHookMsg::MouseDown(btn) => {
                     LAST_INPUT_MS.store(now_mono_ms(), Ordering::Relaxed);
                     let _ = app.emit(
-                        "kuro-input",
+                        "mini-input",
                         InputEvent::MouseDown {
                             button: btn.to_string(),
                         },
@@ -418,7 +418,7 @@ pub fn start_global_hooks(app: AppHandle) {
                 }
                 RawHookMsg::MouseUp(btn) => {
                     let _ = app.emit(
-                        "kuro-input",
+                        "mini-input",
                         InputEvent::MouseUp {
                             button: btn.to_string(),
                         },
@@ -426,14 +426,14 @@ pub fn start_global_hooks(app: AppHandle) {
                 }
                 RawHookMsg::MouseWheel(delta) => {
                     LAST_INPUT_MS.store(now_mono_ms(), Ordering::Relaxed);
-                    let _ = app.emit("kuro-input", InputEvent::MouseWheel { delta });
+                    let _ = app.emit("mini-input", InputEvent::MouseWheel { delta });
                 }
                 RawHookMsg::MouseMove { x, y } => {
                     let now = Instant::now();
                     if now.duration_since(last_mouse_emit) >= Duration::from_millis(16) {
                         last_mouse_emit = now;
                         let (nx, ny) = normalize_screen_point(x, y);
-                        let _ = app.emit("kuro-input", InputEvent::MouseMove { x, y, nx, ny });
+                        let _ = app.emit("mini-input", InputEvent::MouseMove { x, y, nx, ny });
                     }
                 }
             }
@@ -608,7 +608,7 @@ fn run_windows_hook_loop() {
 
         let mut msg: MSG = std::mem::zeroed();
         while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
-            if msg.message == WM_KURO_PAUSE_TOGGLE {
+            if msg.message == WM_MINI_PAUSE_TOGGLE {
                 let pause = msg.wParam != 0;
                 if pause {
                     if !kb_hook.is_null() {

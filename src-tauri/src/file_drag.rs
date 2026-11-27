@@ -344,7 +344,7 @@ pub fn start_file_drag_watcher(
                 active_flag.store(true, Ordering::Relaxed);
                 let side = crate::pet_trash_side(&app).to_string();
                 let _ = app.emit(
-                    "kuro-file-drag",
+                    "mini-file-drag",
                     FileDragInfo {
                         active: true,
                         count,
@@ -355,7 +355,7 @@ pub fn start_file_drag_watcher(
                 last_count = count;
                 let side = crate::pet_trash_side(&app).to_string();
                 let _ = app.emit(
-                    "kuro-file-drag",
+                    "mini-file-drag",
                     FileDragInfo {
                         active: true,
                         count,
@@ -367,7 +367,7 @@ pub fn start_file_drag_watcher(
                 last_count = 0;
                 active_flag.store(false, Ordering::Relaxed);
                 let _ = app.emit(
-                    "kuro-file-drag",
+                    "mini-file-drag",
                     FileDragInfo {
                         active: false,
                         count: 0,

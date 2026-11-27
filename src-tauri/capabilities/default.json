@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capabilities for KuroCat Pet",
+  "description": "Default capabilities for MiniCat Pet",
   "windows": ["main"],
   "permissions": [
     "core:default",

@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
-import { KuroCatEngine, type KeyboardOrientation } from './catEngine';
+import { MiniCatEngine, type KeyboardOrientation } from './catEngine';
 import { catAudio } from './audio';
 import { DEFAULT_BUILTIN_CATS, type CatSkinConfig } from './catSkins';
 import type { KeyboardLayoutId } from './keyboardLayout';
@@ -114,7 +114,7 @@ const updateToastTextEl = document.getElementById('update-toast-text') as HTMLSp
 const btnToastInstallEl = document.getElementById('btn-toast-install') as HTMLButtonElement;
 const btnToastOpenEl = document.getElementById('btn-toast-open') as HTMLButtonElement;
 const btnToastCloseEl = document.getElementById('btn-toast-close') as HTMLButtonElement;
-const engine = new KuroCatEngine(canvas);
+const engine = new MiniCatEngine(canvas);
 
 function renderBreedPills(): void {
   if (!breedPillsEl) return;
@@ -453,7 +453,7 @@ async function bootstrap(): Promise<void> {
     console.error('Failed to load settings or cats:', err);
   }
 
-  await listen<UpdateProgressEvent>('kuro-update-status', (ev) => {
+  await listen<UpdateProgressEvent>('mini-update-status', (ev) => {
     handleUpdateProgressEvent(ev.payload, false);
   });
 
@@ -464,7 +464,7 @@ async function bootstrap(): Promise<void> {
 
   btnToastOpenEl.addEventListener('click', (e) => {
     e.stopPropagation();
-    const url = latestUpdateInfo?.releaseUrl || 'https://github.com/xpfyg/kurocat/releases/latest';
+    const url = latestUpdateInfo?.releaseUrl || 'https://github.com/xpfyg/minicat/releases/latest';
     void invoke('open_release_page', { url });
   });
 
@@ -506,7 +506,7 @@ async function bootstrap(): Promise<void> {
     });
   }
 
-  await listen<AppSettings>('kuro-settings', (ev) => {
+  await listen<AppSettings>('mini-settings', (ev) => {
     const prevLock = lastKnownLockState;
     settings = ev.payload;
     lastKnownLockState = settings.clickThroughLocked;
@@ -520,14 +520,14 @@ async function bootstrap(): Promise<void> {
     }
   });
 
-  await listen<CatSkinConfig[]>('kuro-cats', (ev) => {
+  await listen<CatSkinConfig[]>('mini-cats', (ev) => {
     if (Array.isArray(ev.payload) && ev.payload.length > 0) {
       catList = ev.payload;
       syncMenuUI();
     }
   });
 
-  await listen<InputEvent>('kuro-input', (ev) => {
+  await listen<InputEvent>('mini-input', (ev) => {
     const p = ev.payload;
     switch (p.kind) {
       case 'keyDown':
@@ -554,11 +554,11 @@ async function bootstrap(): Promise<void> {
     }
   });
 
-  await listen<boolean>('kuro-privacy', (ev) => {
+  await listen<boolean>('mini-privacy', (ev) => {
     engine.setPrivacyMode(Boolean(ev.payload));
   });
 
-  await listen<boolean>('kuro-media', (ev) => {
+  await listen<boolean>('mini-media', (ev) => {
     engine.setMusicPlaying(Boolean(ev.payload));
   });
 
@@ -585,7 +585,7 @@ async function bootstrap(): Promise<void> {
   const fallbackTrashSide = (): 'left' | 'right' =>
     window.screenX + window.innerWidth / 2 < window.screen.width / 2 ? 'right' : 'left';
 
-  await listen<FileDragInfo>('kuro-file-drag', (ev) => {
+  await listen<FileDragInfo>('mini-file-drag', (ev) => {
     const p = ev.payload;
     watcherDragActive = Boolean(p.active);
     if (settings.trashHelper === false) return;
@@ -633,7 +633,7 @@ async function bootstrap(): Promise<void> {
     console.error('Drag & drop listener unavailable:', err);
   }
 
-  await listen<WindowCursorInfo>('kuro-cursor', (ev) => {
+  await listen<WindowCursorInfo>('mini-cursor', (ev) => {
     const c = ev.payload;
     altOverride = Boolean(c.altOverride);
     engine.onWindowCursor(c.relX, c.relY, c.overCat);
@@ -813,13 +813,13 @@ async function bootstrap(): Promise<void> {
       };
       syncWin7OverlayFn = syncWin7Overlay;
 
-      await listen<{ x: number; y: number }>('kuro-win7-contextmenu', (ev) => {
+      await listen<{ x: number; y: number }>('mini-win7-contextmenu', (ev) => {
         openContextMenu(ev.payload.x, ev.payload.y);
       });
-      await listen('kuro-win7-close-menu', () => {
+      await listen('mini-win7-close-menu', () => {
         closeContextMenu();
       });
-      await listen<boolean>('kuro-win7-visibility', (ev) => {
+      await listen<boolean>('mini-win7-visibility', (ev) => {
         win7Visible = Boolean(ev.payload);
         if (win7Visible) {
           lastFrameKey = '';

@@ -281,7 +281,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
     let icon = Image::from_bytes(include_bytes!("../icons/tray-icon.png"))?;
     let pause_guard_for_click = pause_guard.clone();
 
-    TrayIconBuilder::with_id("kuro-tray")
+    TrayIconBuilder::with_id("mini-tray")
         .icon(icon)
         .tooltip(default_tray_tooltip())
         .menu(&menu)
@@ -319,7 +319,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                             .store(false, std::sync::atomic::Ordering::SeqCst);
                         crate::input_hook::set_hooks_paused(false);
                         let _ = pause_guard.set_checked(false);
-                        if let Some(tray) = app.tray_by_id("kuro-tray") {
+                        if let Some(tray) = app.tray_by_id("mini-tray") {
                             let _ = tray.set_tooltip(Some(default_tray_tooltip()));
                         }
                         set_pet_visible(app, true);
@@ -337,7 +337,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                         .store(next, std::sync::atomic::Ordering::SeqCst);
                     crate::input_hook::set_hooks_paused(next);
                     let _ = pause_guard.set_checked(next);
-                    if let Some(tray) = app.tray_by_id("kuro-tray") {
+                    if let Some(tray) = app.tray_by_id("mini-tray") {
                         let tip = if next {
                             "MiniCat（已暂停监听 · 反作弊护航中）"
                         } else {
@@ -359,7 +359,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                     let locked = s.click_through_locked;
                     crate::config::save_settings(&s);
                     let _ = click_through.set_checked(locked);
-                    let _ = app.emit("kuro-settings", s.clone());
+                    let _ = app.emit("mini-settings", s.clone());
                 }
                 "key_bubbles" => {
                     let mut s = state.settings.lock().unwrap();
@@ -367,7 +367,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                     let enabled = s.show_key_bubbles;
                     crate::config::save_settings(&s);
                     let _ = key_bubbles.set_checked(enabled);
-                    let _ = app.emit("kuro-settings", s.clone());
+                    let _ = app.emit("mini-settings", s.clone());
                 }
                 "privacy_guard" => {
                     let mut s = state.settings.lock().unwrap();
@@ -375,7 +375,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                     let enabled = s.privacy_password_guard;
                     crate::config::save_settings(&s);
                     let _ = privacy_guard.set_checked(enabled);
-                    let _ = app.emit("kuro-settings", s.clone());
+                    let _ = app.emit("mini-settings", s.clone());
                 }
                 "sound_toggle" => {
                     let mut s = state.settings.lock().unwrap();
@@ -383,7 +383,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                     let enabled = s.sound_enabled;
                     crate::config::save_settings(&s);
                     let _ = sound_toggle.set_checked(enabled);
-                    let _ = app.emit("kuro-settings", s.clone());
+                    let _ = app.emit("mini-settings", s.clone());
                 }
                 "always_on_top" => {
                     let (on_top, updated) = {
@@ -395,7 +395,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                     };
                     let _ = always_on_top.set_checked(on_top);
                     set_pet_always_on_top(app, on_top);
-                    let _ = app.emit("kuro-settings", updated);
+                    let _ = app.emit("mini-settings", updated);
                 }
                 "autostart" => {
                     let mut s = state.settings.lock().unwrap();
@@ -404,7 +404,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                         s.autostart = next;
                         crate::config::save_settings(&s);
                         let _ = autostart.set_checked(next);
-                        let _ = app.emit("kuro-settings", s.clone());
+                        let _ = app.emit("mini-settings", s.clone());
                     }
                 }
                 "mcp_toggle" => {
@@ -416,7 +416,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                         .store(enabled, std::sync::atomic::Ordering::Relaxed);
                     crate::config::save_settings(&s);
                     let _ = mcp_toggle.set_checked(enabled);
-                    let _ = app.emit("kuro-settings", s.clone());
+                    let _ = app.emit("mini-settings", s.clone());
                 }
                 "breed_black" => apply_breed_and_save(app, "black"),
                 "breed_ragdoll" => apply_breed_and_save(app, "ragdoll"),
@@ -458,7 +458,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                     let app_clone = app.clone();
                     set_pet_visible(app, true);
                     let _ = app_clone.emit(
-                        "kuro-update-status",
+                        "mini-update-status",
                         crate::updater::UpdateProgressEvent {
                             stage: "checking".to_string(),
                             message: "正在检查新版本...".to_string(),
@@ -473,7 +473,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                                 ("up_to_date", format!("已是最新版本 v{}", info.current_version))
                             };
                             let _ = app_clone.emit(
-                                "kuro-update-status",
+                                "mini-update-status",
                                 crate::updater::UpdateProgressEvent {
                                     stage: stage.to_string(),
                                     message: msg,
@@ -483,7 +483,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                         }
                         Err(err) => {
                             let _ = app_clone.emit(
-                                "kuro-update-status",
+                                "mini-update-status",
                                 crate::updater::UpdateProgressEvent {
                                     stage: "error".to_string(),
                                     message: err,

@@ -126,7 +126,7 @@ const BODY_SLICES: Array<{ t: number; hw: number }> = [
   { t: 1.00, hw: 46 }, // cozy bottom rest
 ];
 
-export class KuroCatEngine {
+export class MiniCatEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private rafId = 0;

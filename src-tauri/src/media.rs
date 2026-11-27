@@ -4,7 +4,7 @@
 //! meetings/videos), we only look for well-known music player processes. This keeps
 //! the feature permission-free and dependency-free on all three platforms.
 //!
-//! The watcher polls every few seconds and emits `kuro-media` with the current
+//! The watcher polls every few seconds and emits `mini-media` with the current
 //! state, so the frontend simply toggles the cat's relaxed mood.
 
 use std::thread;
@@ -88,7 +88,7 @@ fn line_is_music_app(line: &str) -> bool {
 }
 
 fn env_force_music() -> Option<bool> {
-    std::env::var("KUROCAT_MUSIC").ok().and_then(|value| {
+    std::env::var("MINICAT_MUSIC").ok().and_then(|value| {
         let v = value.trim();
         if v == "1" || v.eq_ignore_ascii_case("true") {
             Some(true)
@@ -234,7 +234,7 @@ pub fn start_media_watcher(app: AppHandle) {
             if last_state != Some(playing) || initial_syncs_left > 0 {
                 last_state = Some(playing);
                 initial_syncs_left = initial_syncs_left.saturating_sub(1);
-                let _ = app.emit("kuro-media", playing);
+                let _ = app.emit("mini-media", playing);
             }
             thread::sleep(POLL_INTERVAL);
         }

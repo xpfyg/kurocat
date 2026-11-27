@@ -9,7 +9,7 @@ ICON_DIR = os.path.join(ROOT, "src-tauri", "icons")
 SOURCE_ART = os.path.join(ICON_DIR, "source-artwork.png")
 PREVIEW_OUT = os.path.join(
     r"C:\Users\admin\.gemini\antigravity\brain\9e28e15f-9987-4dd6-a482-8dfb9574ef80\scratch",
-    "kurocat-icon-preview.png",
+    "minicat-icon-preview.png",
 )
 
 
@@ -252,7 +252,7 @@ def build_nsis_sidebar(win_icon: Image.Image, out_path: str) -> None:
     font_title = load_font(22, bold=True)
     font_sub = load_font(11, bold=False)
 
-    title = "KuroCat"
+    title = "MiniCat"
     tb = draw.textbbox((0, 0), title, font=font_title)
     tw = tb[2] - tb[0]
     draw.text(((w - tw) // 2, 180), title, fill=(24, 25, 32, 255), font=font_title)
@@ -283,7 +283,7 @@ def build_nsis_header(win_icon: Image.Image, out_path: str) -> None:
 
     # Subtle brand accent beside icon
     font_brand = load_font(16, bold=True)
-    text = "KuroCat"
+    text = "MiniCat"
     tb = draw.textbbox((0, 0), text, font=font_brand)
     tw = tb[2] - tb[0]
     th = tb[3] - tb[1]
@@ -318,7 +318,7 @@ def build_preview_sheet(win_icon: Image.Image, mac_icon: Image.Image, tray_icon:
         # Large 200px hero icon
         hero = win_icon.resize((200, 200), Image.Resampling.LANCZOS)
         sheet.alpha_composite(hero, (ox + 48, 76))
-        draw.text((ox + 114, 286), "KuroCat", fill=txt_col, font=f_hdr)
+        draw.text((ox + 114, 286), "MiniCat", fill=txt_col, font=f_hdr)
 
         # Medium / small desktop & taskbar sizes
         sizes_row = [(64, 280), (48, 364), (32, 428)]

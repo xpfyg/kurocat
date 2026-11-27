@@ -126,7 +126,7 @@ pub fn app_data_dir() -> PathBuf {
         let base = std::env::var("APPDATA")
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("."));
-        base.join("kuro-cat-pet")
+        base.join("mini-cat-pet")
     }
     #[cfg(target_os = "macos")]
     {
@@ -135,14 +135,14 @@ pub fn app_data_dir() -> PathBuf {
             .unwrap_or_else(|_| PathBuf::from("."));
         home.join("Library")
             .join("Application Support")
-            .join("kuro-cat-pet")
+            .join("mini-cat-pet")
     }
     #[cfg(all(not(windows), not(target_os = "macos")))]
     {
         let home = std::env::var("HOME")
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("."));
-        home.join(".config").join("kuro-cat-pet")
+        home.join(".config").join("mini-cat-pet")
     }
 }
 
@@ -244,7 +244,11 @@ pub fn set_windows_autostart(enabled: bool) -> Result<(), String> {
 pub fn set_windows_autostart(enabled: bool) -> Result<(), String> {
     let home = std::env::var("HOME").map_err(|e| e.to_string())?;
     let agents_dir = PathBuf::from(home).join("Library").join("LaunchAgents");
-    let plist_path = agents_dir.join("com.kurocat.pet.plist");
+    let plist_path = agents_dir.join("com.minicat.pet.plist");
+    let legacy_plist_path = agents_dir.join("com.kurocat.pet.plist");
+    if legacy_plist_path.exists() {
+        let _ = fs::remove_file(legacy_plist_path);
+    }
 
     if enabled {
         fs::create_dir_all(&agents_dir).map_err(|e| e.to_string())?;
@@ -258,7 +262,7 @@ pub fn set_windows_autostart(enabled: bool) -> Result<(), String> {
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.kurocat.pet</string>
+    <string>com.minicat.pet</string>
     <key>ProgramArguments</key>
     <array>
         <string>{}</string>
@@ -290,7 +294,11 @@ pub fn set_windows_autostart(enabled: bool) -> Result<(), String> {
             PathBuf::from(home).join(".config")
         });
     let autostart_dir = config_root.join("autostart");
-    let desktop_path = autostart_dir.join("kurocat.desktop");
+    let desktop_path = autostart_dir.join("minicat.desktop");
+    let legacy_desktop_path = autostart_dir.join("kurocat.desktop");
+    if legacy_desktop_path.exists() {
+        let _ = fs::remove_file(legacy_desktop_path);
+    }
 
     if enabled {
         fs::create_dir_all(&autostart_dir).map_err(|e| e.to_string())?;
@@ -304,7 +312,7 @@ pub fn set_windows_autostart(enabled: bool) -> Result<(), String> {
              Name=MiniCat\n\
              Comment=Minimalist desktop cat typing & mouse companion\n\
              Exec=\"{exe}\"\n\
-             Icon=KuroCat\n\
+             Icon=MiniCat\n\
              Terminal=false\n\
              X-GNOME-Autostart-enabled=true\n",
             exe = exe.replace('"', "\\\"")

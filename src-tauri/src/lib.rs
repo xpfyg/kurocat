@@ -123,7 +123,7 @@ pub fn set_pet_visible(app: &AppHandle, visible: bool) {
     if win_needs_win7_ulw() {
         win7_layered::set_visible(visible);
         if !visible {
-            let _ = app.emit("kuro-win7-close-menu", ());
+            let _ = app.emit("mini-win7-close-menu", ());
             win7_layered::set_overlay_active(false);
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.set_position(PhysicalPosition::new(
@@ -134,7 +134,7 @@ pub fn set_pet_visible(app: &AppHandle, visible: bool) {
         } else if on_top {
             win7_layered::reassert_topmost();
         }
-        let _ = app.emit("kuro-win7-visibility", visible);
+        let _ = app.emit("mini-win7-visibility", visible);
         return;
     }
 
@@ -209,10 +209,10 @@ fn get_mcp_config(state: State<'_, AppState>) -> String {
     let port = state.settings.lock().unwrap().mcp_port;
     let exe = std::env::current_exe()
         .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|_| "KuroCat.exe".to_string());
+        .unwrap_or_else(|_| "MiniCat.exe".to_string());
     serde_json::to_string_pretty(&serde_json::json!({
         "mcpServers": {
-            "kurocat": {
+            "minicat": {
                 "command": exe,
                 "args": ["--mcp"],
                 "url": format!("http://127.0.0.1:{}/mcp", port)
@@ -266,7 +266,7 @@ fn update_settings(app: AppHandle, state: State<'_, AppState>, mut patch: AppSet
         *s = patch.clone();
         save_settings(&s);
     }
-    let _ = app.emit("kuro-settings", patch.clone());
+    let _ = app.emit("mini-settings", patch.clone());
     patch
 }
 
@@ -410,7 +410,7 @@ pub fn apply_breed_and_save(app: &AppHandle, breed: &str) {
         save_settings(&s);
         s.clone()
     };
-    let _ = app.emit("kuro-settings", updated);
+    let _ = app.emit("mini-settings", updated);
 }
 
 pub fn reload_and_emit_all(app: &AppHandle) {
@@ -443,8 +443,8 @@ pub fn reload_and_emit_all(app: &AppHandle) {
         }
     }
 
-    let _ = app.emit("kuro-cats", cats);
-    let _ = app.emit("kuro-settings", disk_settings);
+    let _ = app.emit("mini-cats", cats);
+    let _ = app.emit("mini-settings", disk_settings);
 }
 
 fn file_mtime(path: &std::path::Path) -> Option<SystemTime> {
@@ -488,7 +488,7 @@ pub fn apply_scale_and_save(app: &AppHandle, scale: f64) {
         save_settings(&s);
         s.clone()
     };
-    let _ = app.emit("kuro-settings", updated);
+    let _ = app.emit("mini-settings", updated);
 }
 
 pub fn apply_keyboard_layout_and_save(app: &AppHandle, layout: &str) {
@@ -508,7 +508,7 @@ pub fn apply_keyboard_layout_and_save(app: &AppHandle, layout: &str) {
         save_settings(&s);
         s.clone()
     };
-    let _ = app.emit("kuro-settings", updated);
+    let _ = app.emit("mini-settings", updated);
 }
 
 pub fn apply_keyboard_orientation_and_save(app: &AppHandle, orientation: &str) {
@@ -520,7 +520,7 @@ pub fn apply_keyboard_orientation_and_save(app: &AppHandle, orientation: &str) {
         save_settings(&s);
         s.clone()
     };
-    let _ = app.emit("kuro-settings", updated);
+    let _ = app.emit("mini-settings", updated);
 }
 
 pub fn reset_window_position(app: &AppHandle) {
@@ -1316,7 +1316,7 @@ fn start_hit_test_loop(
                 last_alt_override = alt_override;
                 last_effective_locked = effective_locked;
                 let _ = app.emit(
-                    "kuro-cursor",
+                    "mini-cursor",
                     WindowCursorInfo {
                         rel_x: pet_rx,
                         rel_y: pet_ry,
@@ -1343,7 +1343,7 @@ fn win_needs_win7_ulw() -> bool {
     use std::sync::OnceLock;
     static NEEDS_ULW: OnceLock<bool> = OnceLock::new();
     *NEEDS_ULW.get_or_init(|| {
-        for var in ["KUROCAT_WIN7_ULW", "KUROCAT_WIN7_MASK"] {
+        for var in ["MINICAT_WIN7_ULW", "MINICAT_WIN7_MASK"] {
             if let Ok(v) = std::env::var(var) {
                 let t = v.trim();
                 if t == "1" || t.eq_ignore_ascii_case("true") {
@@ -1548,7 +1548,7 @@ fn win_configure_local_webview2_runtime() {
     {
         let udf = std::env::var_os("LOCALAPPDATA")
             .map(std::path::PathBuf::from)
-            .map(|base| base.join("KuroCat").join("EBWebView-Win7"))
+            .map(|base| base.join("MiniCat").join("EBWebView-Win7"))
             .unwrap_or_else(|| dir.join("WebView2Data"));
         let _ = std::fs::create_dir_all(&udf);
         std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &udf);
@@ -1589,7 +1589,7 @@ fn linux_configure_display_env() {
     if std::env::var_os("WAYLAND_DISPLAY").is_some()
         && std::env::var_os("DISPLAY").map(|v| !v.is_empty()).unwrap_or(false)
         && std::env::var_os("GDK_BACKEND").is_none()
-        && std::env::var_os("KUROCAT_WAYLAND").is_none()
+        && std::env::var_os("MINICAT_WAYLAND").is_none()
     {
         std::env::set_var("GDK_BACKEND", "x11");
     }
@@ -1739,25 +1739,25 @@ pub fn run() {
                     let keys: &[u32] = &[0x46, 0x53, 0x41, 0x45, 0x20, 0xA0, 0x4B];
                     for &vk in keys {
                         let _ = demo_handle.emit(
-                            "kuro-input",
+                            "mini-input",
                             serde_json::json!({ "kind": "keyDown", "vk": vk, "scan": 0, "repeat": false }),
                         );
                         std::thread::sleep(Duration::from_millis(100));
                         let _ = demo_handle.emit(
-                            "kuro-input",
+                            "mini-input",
                             serde_json::json!({ "kind": "keyUp", "vk": vk, "scan": 0 }),
                         );
                     }
                     let _ = demo_handle.emit(
-                        "kuro-input",
+                        "mini-input",
                         serde_json::json!({ "kind": "mouseMove", "x": 400, "y": 400, "nx": 0.25, "ny": 0.4 }),
                     );
                     let _ = demo_handle.emit(
-                        "kuro-input",
+                        "mini-input",
                         serde_json::json!({ "kind": "mouseDown", "button": "left" }),
                     );
                     let _ = demo_handle.emit(
-                        "kuro-input",
+                        "mini-input",
                         serde_json::json!({ "kind": "keyDown", "vk": 0x4B, "scan": 0, "repeat": false }),
                     );
                 });
@@ -1789,7 +1789,7 @@ pub fn run() {
             quit_app,
         ])
         .build(tauri::generate_context!())
-        .expect("error while running KuroCat")
+        .expect("error while running MiniCat")
         .run(|_app, event| {
             if let tauri::RunEvent::Exit = event {
                 cursor_hide::restore_now();
@@ -1809,7 +1809,7 @@ mod windows_zorder_tests {
     #[test]
     fn detects_and_recovers_topmost_zorder_without_stealing_focus() {
         let class_name: Vec<u16> = "STATIC\0".encode_utf16().collect();
-        let title: Vec<u16> = "KuroCatZOrderTest\0".encode_utf16().collect();
+        let title: Vec<u16> = "MiniCatZOrderTest\0".encode_utf16().collect();
         unsafe {
             let hinst = GetModuleHandleW(std::ptr::null());
             let ex = WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;

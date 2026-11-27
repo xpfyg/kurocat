@@ -49,7 +49,7 @@ interface FloatingParticle {
 }
 
 /**
- * BigFish (大肥鱼 / 鲸鱼娘) companion renderer for KuroCat.
+ * BigFish (大肥鱼 / 鲸鱼娘) companion renderer for MiniCat.
  * Uses MIT-licensed `PC2005-cloud/dsh-pet` (via `QCYTSN/dsh-dafeiyu`) armless/tailless sprites
  * with procedural pure-round chibi hands, plump flared maid sleeves, animated ocean-blue whale tail
  * slapping right-edge keys, calm hysteresis-locked typing-speed cheek blush, 3-limb simultaneous

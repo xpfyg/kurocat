@@ -2,15 +2,15 @@
 >
 > 本项目是在原项目 [qianyiai/kurocat](https://github.com/qianyiai/kurocat) 基础上进行的二次开发（衍生作品），遵循原项目的开源协议（[MIT License](./LICENSE)）。本项目与原作者无关，不代表原作者立场；原项目的版权与贡献归原作者及所有贡献者所有。
 
-# KuroCat
+# MiniCat
 
 一只住在桌面上的打字小黑猫。透明、置顶、极轻量，你敲键盘它就跟着敲；支持 Windows 与 macOS，内置 7 款皮肤、6 种实时心情、密码防偷窥、65% / 108 键切换和 AI 捏猫。
 
-[官方网站](https://37lj1lcl30ek76wo2d9.traesite.cn/) · [在线试玩](https://37lj1lcl30ek76wo2d9.traesite.cn/#playground) · [下载安装](https://github.com/xpfyg/kurocat/releases) · [项目源码](https://github.com/xpfyg/kurocat)
+[官方网站](https://37lj1lcl30ek76wo2d9.traesite.cn/) · [在线试玩](https://37lj1lcl30ek76wo2d9.traesite.cn/#playground) · [下载安装](https://github.com/xpfyg/minicat/releases) · [项目源码](https://github.com/xpfyg/minicat)
 
 ## 这是什么
 
-KuroCat 是一个开源桌面宠物：一只会随着你的键盘和鼠标动作敲键盘的小猫，常驻在桌面右下角。
+MiniCat 是一个开源桌面宠物：一只会随着你的键盘和鼠标动作敲键盘的小猫，常驻在桌面右下角。
 
 技术上使用 **Tauri v2 + Rust 原生全局键鼠钩子 + HTML5 Canvas 2D**，没有 Electron 运行时，单文件安装包约 1.6 MB，常驻内存约 20 MB 级别。
 
@@ -64,14 +64,14 @@ https://37lj1lcl30ek76wo2d9.traesite.cn/
 
 ## 下载安装
 
-安装包由 GitHub Actions 自动编译并发布到 [Releases](https://github.com/xpfyg/kurocat/releases)。
+安装包由 GitHub Actions 自动编译并发布到 [Releases](https://github.com/xpfyg/minicat/releases)。
 
 | 平台 | 安装包 | 说明 |
 | --- | --- | --- |
-| Windows 10 / 11 (x64) | [KuroCat-4.8.0-x64-setup.exe](https://github.com/xpfyg/kurocat/releases/download/v4.8.0/KuroCat-4.8.0-x64-setup.exe) | NSIS 安装版，自动创建桌面图标与卸载入口 |
-| macOS 10.15+ | [KuroCat-v4.8.0-macos-universal.dmg](https://github.com/xpfyg/kurocat/releases/download/v4.8.0/KuroCat-v4.8.0-macos-universal.dmg) | Universal 通用镜像，兼容 Apple Silicon 与 Intel |
-| Linux x86_64 | [.deb](https://github.com/xpfyg/kurocat/releases/download/v4.8.0/KuroCat-v4.8.0-linux-amd64.deb) · [.AppImage](https://github.com/xpfyg/kurocat/releases/download/v4.8.0/KuroCat-v4.8.0-linux-amd64.AppImage) | Debian / Ubuntu / 麒麟 / UOS |
-| Linux ARM64 | [.deb](https://github.com/xpfyg/kurocat/releases/download/v4.8.0/KuroCat-v4.8.0-linux-arm64.deb) · [.AppImage](https://github.com/xpfyg/kurocat/releases/download/v4.8.0/KuroCat-v4.8.0-linux-arm64.AppImage) | 飞腾 / 鲲鹏 / 树莓派 |
+| Windows 10 / 11 (x64) | [MiniCat-x64-setup.exe](https://github.com/xpfyg/minicat/releases/latest/download/MiniCat-x64-setup.exe) | NSIS 安装版，自动创建桌面图标与卸载入口 |
+| macOS 10.15+ | [MiniCat-macos-universal.dmg](https://github.com/xpfyg/minicat/releases/latest/download/MiniCat-macos-universal.dmg) | Universal 通用镜像，兼容 Apple Silicon 与 Intel |
+| Linux x86_64 | [.deb](https://github.com/xpfyg/minicat/releases/latest/download/MiniCat-linux-amd64.deb) · [.AppImage](https://github.com/xpfyg/minicat/releases/latest/download/MiniCat-linux-amd64.AppImage) | Debian / Ubuntu / 麒麟 / UOS |
+| Linux ARM64 | [.deb](https://github.com/xpfyg/minicat/releases/latest/download/MiniCat-linux-arm64.deb) · [.AppImage](https://github.com/xpfyg/minicat/releases/latest/download/MiniCat-linux-arm64.AppImage) | 飞腾 / 鲲鹏 / 树莓派 |
 
 ### Windows 首次运行
 
@@ -88,22 +88,22 @@ https://37lj1lcl30ek76wo2d9.traesite.cn/
 未公证应用首次打开若提示「无法验证开发者」或「已损坏」，在终端执行一次：
 
 ```bash
-xattr -cr /Applications/KuroCat.app
+xattr -cr /Applications/MiniCat.app
 ```
 
-随后在「系统设置 → 隐私与安全性」中，为 `KuroCat` 勾选 **辅助功能** 和 **输入监控**。
+随后在「系统设置 → 隐私与安全性」中，为 `MiniCat` 勾选 **辅助功能** 和 **输入监控**。
 
 ## MCP 接入
 
-运行 KuroCat，右键猫咪 → 开启「MCP 扩展」→ 点击「复制 MCP 配置」，粘贴到客户端配置文件中。
+运行 MiniCat，右键猫咪 → 开启「MCP 扩展」→ 点击「复制 MCP 配置」，粘贴到客户端配置文件中。
 
 Stdio 模式（Windows 示例）：
 
 ```json
 {
   "mcpServers": {
-    "kurocat": {
-      "command": "C:\\Users\\<你的用户名>\\AppData\\Local\\KuroCat\\KuroCat.exe",
+    "minicat": {
+      "command": "C:\\Users\\<你的用户名>\\AppData\\Local\\MiniCat\\MiniCat.exe",
       "args": ["--mcp"]
     }
   }
@@ -115,7 +115,7 @@ Stdio 模式（Windows 示例）：
 ```json
 {
   "mcpServers": {
-    "kurocat": {
+    "minicat": {
       "url": "http://127.0.0.1:27420/mcp"
     }
   }
@@ -135,16 +135,16 @@ Stdio 模式（Windows 示例）：
 
 自定义皮肤保存在：
 
-- Windows：`%APPDATA%\kuro-cat-pet\cats.json`
-- macOS：`~/Library/Application Support/kuro-cat-pet/cats.json`
+- Windows：`%APPDATA%\mini-cat-pet\cats.json`
+- macOS：`~/Library/Application Support/mini-cat-pet/cats.json`
 
 ## 从源码构建
 
 前置环境：Node.js 18+、Rust 工具链、系统对应的 Tauri 依赖。
 
 ```bash
-git clone https://github.com/xpfyg/kurocat.git
-cd kurocat
+git clone https://github.com/xpfyg/minicat.git
+cd minicat
 npm install
 
 npm run tauri:dev      # 本地调试

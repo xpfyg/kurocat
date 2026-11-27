@@ -1,12 +1,12 @@
 [package]
-name = "kuro-cat-pet"
+name = "mini-cat-pet"
 version = "5.0.0"
 description = "Cross-platform desktop cat typing & mouse companion for Windows and macOS"
 authors = ["xpfyg"]
 edition = "2021"
 
 [lib]
-name = "kuro_cat_pet_lib"
+name = "mini_cat_pet_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]

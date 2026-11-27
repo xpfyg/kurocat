@@ -10,7 +10,7 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO = "xpfyg/kurocat"
+REPO = "xpfyg/minicat"
 OUT = Path(__file__).resolve().parent.parent / "website" / "data" / "download-stats.json"
 API = f"https://api.github.com/repos/{REPO}/releases?per_page=100&page={{page}}"
 
@@ -46,7 +46,7 @@ def fetch_releases() -> list[dict]:
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "kurocat-download-stats",
+        "User-Agent": "minicat-download-stats",
     }
     releases: list[dict] = []
     for page in range(1, 11):

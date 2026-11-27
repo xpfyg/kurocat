@@ -9,14 +9,14 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-const SERVER_NAME: &str = "kurocat";
+const SERVER_NAME: &str = "minicat";
 const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn tool_definitions() -> Value {
     json!([
         {
             "name": "list_cats",
-            "description": "List all available KuroCat desktop pet skins (built-in and custom cats) and show which cat is currently active on screen.",
+            "description": "List all available MiniCat desktop pet skins (built-in and custom cats) and show which cat is currently active on screen.",
             "inputSchema": {
                 "type": "object",
                 "properties": {},
@@ -134,7 +134,7 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "get_settings",
-            "description": "Read current KuroCat desktop pet settings (active cat, scale, bubbles, petting purr sound, always-on-top, click-through lock, MCP status).",
+            "description": "Read current MiniCat desktop pet settings (active cat, scale, bubbles, petting purr sound, always-on-top, click-through lock, MCP status).",
             "inputSchema": {
                 "type": "object",
                 "properties": {},
@@ -143,7 +143,7 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "update_settings",
-            "description": "Update KuroCat desktop pet settings live (scale 0.2-1.5, showKeyBubbles, soundEnabled, alwaysOnTop, clickThroughLocked, catBreed, keyboardLayout 65|108, keyboardOrientation cat|viewer, autostart).",
+            "description": "Update MiniCat desktop pet settings live (scale 0.2-1.5, showKeyBubbles, soundEnabled, alwaysOnTop, clickThroughLocked, catBreed, keyboardLayout 65|108, keyboardOrientation cat|viewer, autostart).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -367,7 +367,7 @@ pub fn handle_jsonrpc(req: &Value, on_change: &dyn Fn()) -> Option<Value> {
     })
 }
 
-/// Transport 1: Zero-dependency native Stdio MCP server (`KuroCatPet.exe --mcp`)
+/// Transport 1: Zero-dependency native Stdio MCP server (`MiniCat.exe --mcp`)
 pub fn run_stdio_mcp() {
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
@@ -484,7 +484,7 @@ fn handle_http_conn(mut stream: TcpStream, enabled: &AtomicBool, on_change: &dyn
             &mut stream,
             "403 Forbidden",
             "application/json; charset=utf-8",
-            r#"{"error":"MCP server is disabled in KuroCat settings"}"#,
+            r#"{"error":"MCP server is disabled in MiniCat settings"}"#,
         );
         return;
     }

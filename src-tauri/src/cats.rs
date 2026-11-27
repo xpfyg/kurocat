@@ -534,7 +534,7 @@ pub fn cat_exists(id: &str) -> bool {
 
 pub fn cat_schema_guide() -> serde_json::Value {
     serde_json::json!({
-        "description": "KuroCat Custom Cat Skin Schema. Pass any custom cat JSON to upsert_cat (with activate: true) to immediately add and render it live on the user's desktop!",
+        "description": "MiniCat Custom Cat Skin Schema. Pass any custom cat JSON to upsert_cat (with activate: true) to immediately add and render it live on the user's desktop!",
         "patterns": {
             "solid": "Single coat color (e.g., British Shorthair blue, white Persian, golden chinchilla, black cat)",
             "bicolor": "Ragdoll / bicolor inverted-V face mask (uses maskColor, foreheadBridgeColor, flankColor)",
